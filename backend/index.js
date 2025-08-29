@@ -14,7 +14,7 @@ dotenv.config()
 
 const port=process.env.PORT || 5000
 app.use(cors({
-    origin:"http://localhost:5173",
+    origin:"https://turbo-winner-g6gq5rw664pcp5x-5173.app.github.dev/https://turbo-winner-g6gq5rw664pcp5x-5173.app.github.dev",
     credentials:true
 }))
 app.use(express.json())
