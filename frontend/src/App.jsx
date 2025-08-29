@@ -17,15 +17,15 @@ import Story from './pages/Story'
 import getAllStories from './hooks/getAllStories'
 import Messages from './pages/Messages'
 import MessageArea from './pages/MessageArea'
-import {io} from "socket.io-client"
-import { setOnlineUsers, setSocket } from './redux/socketSlice'
+import webSocketService from './services/websocket'
+import { setOnlineUsers } from './redux/socketSlice'
 import getFollowingList from './hooks/getFollowingList'
 import getPrevChatUsers from './hooks/getPrevChatUsers'
 import Search from './pages/Search'
 import getAllNotifications from './hooks/getAllNotifications'
 import Notifications from './pages/Notifications'
 import { setNotificationData } from './redux/userSlice'
-export const serverUrl="http://localhost:8000"
+
 function App() {
    getCurrentUser()
    getSuggestedUsers()
@@ -37,37 +37,24 @@ function App() {
    getAllNotifications()
   const {userData,notificationData}=useSelector(state=>state.user)
    
-    const {socket}=useSelector(state=>state.socket)
     const dispatch=useDispatch()
  useEffect(()=>{
   if(userData){
-    const socketIo=io(`${serverUrl}`,{
-      query:{
-        userId:userData._id
-      }
-    })
-dispatch(setSocket(socketIo))
+    webSocketService.connect(userData.userId);
+    
+    webSocketService.on('getOnlineUsers', (users) => {
+      dispatch(setOnlineUsers(users));
+    });
 
+    webSocketService.on('newNotification', (noti) => {
+      dispatch(setNotificationData([...notificationData, noti]));
+    });
 
-socketIo.on('getOnlineUsers',(users)=>{
-  dispatch(setOnlineUsers(users))
-  console.log(users)
-})
-
-
-return ()=>socketIo.close()
+    return () => webSocketService.disconnect();
   }else{
-    if(socket){
-      socket.close()
-      dispatch(setSocket(null))
-    }
+    webSocketService.disconnect();
   }
  },[userData])
-
-
-socket?.on("newNotification",(noti)=>{
-  dispatch(setNotificationData([...notificationData,noti]))
-})
 
   return (
     <Routes>

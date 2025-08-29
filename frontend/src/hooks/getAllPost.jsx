@@ -1,6 +1,5 @@
-import axios from 'axios'
+import api from '../services/api'
 import React, { useEffect } from 'react'
-import { serverUrl } from '../App'
 import { useDispatch, useSelector } from 'react-redux'
 import { setUserData } from '../redux/userSlice'
 import { setPostData } from '../redux/postSlice'
@@ -11,7 +10,7 @@ function getAllPost() {
   useEffect(()=>{
 const fetchPost=async ()=>{
     try {
-        const result=await axios.get(`${serverUrl}/api/post/getAll`,{withCredentials:true})
+        const result=await api.get('/api/post/getAll')
          dispatch(setPostData(result.data))
     } catch (error) {
         console.log(error)

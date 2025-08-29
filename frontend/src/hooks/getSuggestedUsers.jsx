@@ -1,6 +1,5 @@
-import axios from 'axios'
+import api from '../services/api'
 import React, { useEffect } from 'react'
-import { serverUrl } from '../App'
 import { useDispatch, useSelector } from 'react-redux'
 import { setSuggestedUsers, setUserData } from '../redux/userSlice'
 
@@ -10,7 +9,7 @@ function getSuggestedUsers() {
   useEffect(()=>{
 const fetchUser=async ()=>{
     try {
-        const result=await axios.get(`${serverUrl}/api/user/suggested`,{withCredentials:true})
+        const result=await api.get('/api/user/suggested')
          dispatch(setSuggestedUsers(result.data))
     } catch (error) {
         console.log(error)
