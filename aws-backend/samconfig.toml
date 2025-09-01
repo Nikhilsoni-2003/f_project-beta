@@ -1,0 +1,12 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "sam-app"
+resolve_s3 = true
+s3_prefix = "sam-app"
+region = "eu-north-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "CognitoUserPoolId=\"eu-north-1_RFZvLrDd9\" CognitoClientId=\"7p0e3uioc8mtq69m4qq12540mn\" S3BucketName=\"serverless-social-media-storage-123\" CloudFrontDomain=\"dsvtq5o5a0ykh.cloudfront.net\""
+image_repositories = []
