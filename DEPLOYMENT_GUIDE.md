@@ -93,7 +93,7 @@ sam deploy --guided
 
 During `sam deploy --guided`, you'll be prompted for:
 
-- **Stack name**: `social-media-app` (or your preferred name)
+- **Stack name**: `serverless-social-media-app` (or your preferred name)
 - **AWS Region**: `eu-north-1`
 - **Parameter CognitoUserPoolId**: `eu-north-1_RFZvLrDd9`
 - **Parameter CognitoClientId**: `7p0e3uioc8mtq69m4qq12540mn`
@@ -109,14 +109,22 @@ During `sam deploy --guided`, you'll be prompted for:
 After successful deployment, you'll see outputs like:
 ```
 Outputs:
-ApiGatewayUrl: https://abc123def.execute-api.eu-north-1.amazonaws.com/prod
-WebSocketUrl: wss://xyz789ghi.execute-api.eu-north-1.amazonaws.com/prod
+ApiGatewayUrl: https://your-api-gateway-id.execute-api.eu-north-1.amazonaws.com/prod
+WebSocketUrl: wss://your-websocket-api-id.execute-api.eu-north-1.amazonaws.com/prod
+WebSocketApiId: your-websocket-api-id
 ```
 
-Update `frontend/.env` with the actual URLs:
+Create `frontend/.env` with the actual URLs:
 ```env
+VITE_AWS_REGION=eu-north-1
+VITE_AWS_ACCOUNT_ID=your-account-id
+VITE_COGNITO_USER_POOL_ID=eu-north-1_RFZvLrDd9
+VITE_COGNITO_CLIENT_ID=7p0e3uioc8mtq69m4qq12540mn
+VITE_S3_BUCKET_NAME=serverless-social-media-storage-123
+VITE_CLOUDFRONT_DOMAIN=dsvtq5o5a0ykh.cloudfront.net
 VITE_API_GATEWAY_URL=https://your-actual-api-gateway-url
 VITE_WEBSOCKET_URL=wss://your-actual-websocket-url
+VITE_WEBSOCKET_API_ID=your-websocket-api-id
 ```
 
 ### 7. Test Your Backend

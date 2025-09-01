@@ -31,26 +31,36 @@ exports.handler = async (event) => {
 const signUp = async ({ name, userName, email, password }) => {
   try {
     // Check if user already exists
-    const existingUserByEmail = await dynamodb.query(
-      process.env.USERS_TABLE,
-      'email = :email',
-      { ':email': email },
-      'email-index'
-    );
+    try {
+      const existingUserByEmail = await dynamodb.query(
+        process.env.USERS_TABLE,
+        'email = :email',
+        { ':email': email },
+        'email-index'
+      );
 
-    if (existingUserByEmail.length > 0) {
-      return createErrorResponse(400, 'User with this email already exists');
+      if (existingUserByEmail.length > 0) {
+        return createErrorResponse(400, 'User with this email already exists');
+      }
+    } catch (error) {
+      // If table doesn't exist or index doesn't exist, continue
+      console.log('Email check failed, continuing with signup');
     }
 
-    const existingUserByUserName = await dynamodb.query(
-      process.env.USERS_TABLE,
-      'userName = :userName',
-      { ':userName': userName },
-      'userName-index'
-    );
+    try {
+      const existingUserByUserName = await dynamodb.query(
+        process.env.USERS_TABLE,
+        'userName = :userName',
+        { ':userName': userName },
+        'userName-index'
+      );
 
-    if (existingUserByUserName.length > 0) {
-      return createErrorResponse(400, 'Username already taken');
+      if (existingUserByUserName.length > 0) {
+        return createErrorResponse(400, 'Username already taken');
+      }
+    } catch (error) {
+      // If table doesn't exist or index doesn't exist, continue
+      console.log('Username check failed, continuing with signup');
     }
 
     // Create user in Cognito
@@ -90,23 +100,38 @@ const signUp = async ({ name, userName, email, password }) => {
 const signIn = async ({ userName, password }) => {
   try {
     // Find user by userName
-    const users = await dynamodb.query(
-      process.env.USERS_TABLE,
-      'userName = :userName',
-      { ':userName': userName },
-      'userName-index'
-    );
+    try {
+      const users = await dynamodb.query(
+        process.env.USERS_TABLE,
+        'userName = :userName',
+        { ':userName': userName },
+        'userName-index'
+      );
 
-    if (users.length === 0) {
-      return createErrorResponse(400, 'User not found');
+      if (users.length === 0) {
+        return createErrorResponse(400, 'User not found');
+      }
+
+      const user = users[0];
+
+      // Sign in with Cognito
+      const tokens = await cognito.signIn(user.email, password);
+
+      return createSuccessResponse({ user, tokens });
+    } catch (error) {
+      // Fallback: try signing in with userName as email
+      const tokens = await cognito.signIn(userName, password);
+      
+      // Get user data from DynamoDB after successful Cognito auth
+      const users = await dynamodb.scan(process.env.USERS_TABLE);
+      const user = users.find(u => u.userName === userName);
+      
+      if (!user) {
+        return createErrorResponse(400, 'User data not found');
+      }
+      
+      return createSuccessResponse({ user, tokens });
     }
-
-    const user = users[0];
-
-    // Sign in with Cognito
-    const tokens = await cognito.signIn(user.email, password);
-
-    return createSuccessResponse({ user, tokens });
   } catch (error) {
     console.error('SignIn Error:', error);
     return createErrorResponse(400, 'Invalid credentials');

@@ -32,192 +32,16 @@ Globals:
         COGNITO_CLIENT_ID: !Ref CognitoClientId
         S3_BUCKET_NAME: !Ref S3BucketName
         CLOUDFRONT_DOMAIN: !Ref CloudFrontDomain
-        USERS_TABLE: !Ref UsersTable
-        POSTS_TABLE: !Ref PostsTable
-        LOOPS_TABLE: !Ref LoopsTable
-        STORIES_TABLE: !Ref StoriesTable
-        MESSAGES_TABLE: !Ref MessagesTable
-        CONVERSATIONS_TABLE: !Ref ConversationsTable
-        NOTIFICATIONS_TABLE: !Ref NotificationsTable
-        CONNECTIONS_TABLE: !Ref ConnectionsTable
+        USERS_TABLE: Users
+        POSTS_TABLE: Posts
+        LOOPS_TABLE: Loops
+        STORIES_TABLE: Stories
+        MESSAGES_TABLE: Messages
+        CONVERSATIONS_TABLE: Conversations
+        NOTIFICATIONS_TABLE: Notifications
+        CONNECTIONS_TABLE: Connections
 
 Resources:
-  # DynamoDB Tables
-  UsersTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Users
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-        - AttributeName: email
-          AttributeType: S
-        - AttributeName: userName
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: email-index
-          KeySchema:
-            - AttributeName: email
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-        - IndexName: userName-index
-          KeySchema:
-            - AttributeName: userName
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
-  PostsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Posts
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: postId
-          AttributeType: S
-        - AttributeName: authorId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: postId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: author-index
-          KeySchema:
-            - AttributeName: authorId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
-  LoopsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Loops
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: loopId
-          AttributeType: S
-        - AttributeName: authorId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: loopId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: author-index
-          KeySchema:
-            - AttributeName: authorId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
-  StoriesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Stories
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: storyId
-          AttributeType: S
-        - AttributeName: authorId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: storyId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: author-index
-          KeySchema:
-            - AttributeName: authorId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
-  MessagesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Messages
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: messageId
-          AttributeType: S
-        - AttributeName: conversationId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: messageId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: conversation-index
-          KeySchema:
-            - AttributeName: conversationId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
-  ConversationsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Conversations
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: conversationId
-          AttributeType: S
-        - AttributeName: participant1
-          AttributeType: S
-        - AttributeName: participant2
-          AttributeType: S
-      KeySchema:
-        - AttributeName: conversationId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: participant1-index
-          KeySchema:
-            - AttributeName: participant1
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-        - IndexName: participant2-index
-          KeySchema:
-            - AttributeName: participant2
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
-  NotificationsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Notifications
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: notificationId
-          AttributeType: S
-        - AttributeName: receiverId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: notificationId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: receiver-index
-          KeySchema:
-            - AttributeName: receiverId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
-  ConnectionsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Connections
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: connectionId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: connectionId
-          KeyType: HASH
-
   # API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
@@ -291,10 +115,18 @@ Resources:
             Auth:
               Authorizer: NONE
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref UsersTable
         - Version: '2012-10-17'
           Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: 
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
             - Effect: Allow
               Action:
                 - cognito-idp:*
@@ -350,14 +182,28 @@ Resources:
             Path: /api/user/followingList
             Method: get
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref UsersTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref PostsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref NotificationsTable
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: 
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
 
   # Post Functions
   PostFunction:
@@ -397,14 +243,28 @@ Resources:
             Path: /api/post/saved/{postId}
             Method: get
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref PostsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref UsersTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref NotificationsTable
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: 
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
 
   # Loop Functions
   LoopFunction:
@@ -438,12 +298,22 @@ Resources:
             Path: /api/loop/comment/{loopId}
             Method: post
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref LoopsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref UsersTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref NotificationsTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: 
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
 
   # Story Functions
   StoryFunction:
@@ -477,10 +347,20 @@ Resources:
             Path: /api/story/view/{storyId}
             Method: get
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref StoriesTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref UsersTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: 
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
 
   # Message Functions
   MessageFunction:
@@ -508,12 +388,22 @@ Resources:
             Path: /api/message/prevChats
             Method: get
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref MessagesTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ConversationsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref UsersTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: 
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Messages'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Messages/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Conversations'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Conversations/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
 
   # Notification Functions
   NotificationFunction:
@@ -535,14 +425,24 @@ Resources:
             Path: /api/user/markAsRead
             Method: post
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref NotificationsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref UsersTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref PostsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref LoopsTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: 
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops'
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*'
 
   # Media Functions
   MediaFunction:
@@ -558,8 +458,15 @@ Resources:
             Path: /api/media/presigned-url
             Method: post
       Policies:
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+                - s3:GetSignedUrl
+              Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
 
   # WebSocket API
   WebSocketApi:
@@ -579,8 +486,17 @@ Resources:
         Variables:
           WEBSOCKET_API_ID: !Ref WebSocketApi
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ConnectionsTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: 
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections'
 
   WebSocketDisconnectFunction:
     Type: AWS::Serverless::Function
@@ -591,8 +507,18 @@ Resources:
         Variables:
           WEBSOCKET_API_ID: !Ref WebSocketApi
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ConnectionsTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: 
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections'
 
   WebSocketMessageFunction:
     Type: AWS::Serverless::Function
@@ -603,10 +529,18 @@ Resources:
         Variables:
           WEBSOCKET_API_ID: !Ref WebSocketApi
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ConnectionsTable
         - Version: '2012-10-17'
           Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: 
+                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections'
             - Effect: Allow
               Action:
                 - execute-api:ManageConnections
@@ -710,3 +644,9 @@ Outputs:
     Value: !Sub 'wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
     Export:
       Name: !Sub '${AWS::StackName}-WebSocketUrl'
+
+  WebSocketApiId:
+    Description: WebSocket API ID
+    Value: !Ref WebSocketApi
+    Export:
+      Name: !Sub '${AWS::StackName}-WebSocketApiId'

@@ -44,7 +44,7 @@ class CognitoService {
   async signIn(userName, password) {
     try {
       const command = new InitiateAuthCommand({
-        AuthFlow: 'ADMIN_NO_SRP_AUTH',
+        AuthFlow: 'USER_PASSWORD_AUTH',
         ClientId: this.clientId,
         AuthParameters: {
           USERNAME: userName,
