@@ -52,7 +52,7 @@ exports.handler = async (event) => {
 
 const sendOnlineUsers = async (connectionId) => {
   try {
-    const connections = await dynamodb.scan(process.env.CONNECTIONS_TABLE);
+    const connections = await dynamodb.scan('Connections');
     const onlineUserIds = [...new Set(connections.map(conn => conn.userId))];
 
     await sendToConnection(connectionId, {
@@ -66,7 +66,7 @@ const sendOnlineUsers = async (connectionId) => {
 
 const broadcastLike = async (type, data) => {
   try {
-    const connections = await dynamodb.scan(process.env.CONNECTIONS_TABLE);
+    const connections = await dynamodb.scan('Connections');
     
     await Promise.all(
       connections.map(async (connection) => {
@@ -83,7 +83,7 @@ const broadcastLike = async (type, data) => {
 
 const broadcastComment = async (type, data) => {
   try {
-    const connections = await dynamodb.scan(process.env.CONNECTIONS_TABLE);
+    const connections = await dynamodb.scan('Connections');
     
     await Promise.all(
       connections.map(async (connection) => {
@@ -100,7 +100,7 @@ const broadcastComment = async (type, data) => {
 
 const broadcastMessage = async (data) => {
   try {
-    const connections = await dynamodb.scan(process.env.CONNECTIONS_TABLE);
+    const connections = await dynamodb.scan('Connections');
     const receiverConnections = connections.filter(conn => conn.userId === data.receiver);
     
     await Promise.all(
@@ -118,7 +118,7 @@ const broadcastMessage = async (data) => {
 
 const broadcastNotification = async (data) => {
   try {
-    const connections = await dynamodb.scan(process.env.CONNECTIONS_TABLE);
+    const connections = await dynamodb.scan('Connections');
     const receiverConnections = connections.filter(conn => conn.userId === data.receiverId);
     
     await Promise.all(
@@ -145,7 +145,7 @@ const sendToConnection = async (connectionId, message) => {
   } catch (error) {
     if (error.statusCode === 410) {
       // Connection is stale, remove it
-      await dynamodb.delete(process.env.CONNECTIONS_TABLE, { connectionId });
+      await dynamodb.delete('Connections', { connectionId });
     }
     console.error('Send to connection error:', error);
   }

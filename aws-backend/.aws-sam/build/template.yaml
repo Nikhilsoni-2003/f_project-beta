@@ -54,11 +54,7 @@ Resources:
         AllowHeaders: '''*'''
         AllowOrigin: '''*'''
       Auth:
-        DefaultAuthorizer:
-          Fn::If:
-          - IsLocal
-          - MockAuthorizer
-          - CognitoUserPoolAuthorizer
+        DefaultAuthorizer: CognitoUserPoolAuthorizer
         Authorizers:
           CognitoUserPoolAuthorizer:
             UserPoolArn:

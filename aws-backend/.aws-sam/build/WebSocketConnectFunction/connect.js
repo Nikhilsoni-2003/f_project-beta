@@ -6,7 +6,7 @@ exports.handler = async (event) => {
 
   try {
     if (userId) {
-      await dynamodb.put(process.env.CONNECTIONS_TABLE, {
+      await dynamodb.put('Connections', {
         connectionId,
         userId,
         connectedAt: Date.now()
@@ -31,7 +31,7 @@ exports.handler = async (event) => {
 
 const broadcastOnlineUsers = async () => {
   try {
-    const connections = await dynamodb.scan(process.env.CONNECTIONS_TABLE);
+    const connections = await dynamodb.scan('Connections');
     const onlineUserIds = [...new Set(connections.map(conn => conn.userId))];
     
     // This would typically broadcast to all connections
