@@ -9,6 +9,8 @@ import axios from 'axios';
 import { serverUrl } from '../App';
 import { setProfileData, setUserData } from '../redux/userSlice';
 import { ClipLoader } from 'react-spinners';
+import uploadService from '../services/upload';
+import api from '../services/api';
 function EditProfile() {
     const { userData } = useSelector(state => state.user)
     const navigate = useNavigate()
@@ -31,16 +33,22 @@ function EditProfile() {
     const handleEditProfile=async ()=>{
         setLoading(true)
         try {
-            const formdata=new FormData()
-            formdata.append("name",name)
-            formdata.append("userName",userName)
-             formdata.append("bio",bio)
-              formdata.append("profession",profession)
-               formdata.append("gender",gender)
-               if(backendImage){
-                formdata.append("profileImage",backendImage)
-               }
-            const result=await axios.post(`${serverUrl}/api/user/editProfile`,formdata,{withCredentials:true})
+            let profileImageKey = '';
+            
+            if (backendImage) {
+                const { key } = await uploadService.uploadMedia(backendImage, 'profile');
+                profileImageKey = key;
+            }
+            
+            const result = await api.post('/api/user/editProfile', {
+                name,
+                userName,
+                bio,
+                profession,
+                gender,
+                profileImageKey
+            });
+            
             dispatch(setProfileData(result.data))
             dispatch(setUserData(result.data))
             setLoading(false)

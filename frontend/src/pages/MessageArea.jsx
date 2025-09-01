@@ -10,6 +10,8 @@ import axios from 'axios';
 import { serverUrl } from '../App';
 import { setMessages } from '../redux/messageSlice';
 import ReceiverMessage from '../components/ReceiverMessage';
+import uploadService from '../services/upload';
+import api from '../services/api';
 function MessageArea() {
   const {selectedUser,messages}=useSelector(state=>state.message)
     const {userData}=useSelector(state=>state.user)
@@ -30,12 +32,18 @@ setFrontendImage(URL.createObjectURL(file))
 const handleSendMessage=async (e)=>{
   e.preventDefault()
   try {
-    const formData=new FormData()
-    formData.append("message",input)
-    if(backendImage){
-       formData.append("image",backendImage)
+    let imageKey = '';
+    
+    if (backendImage) {
+        const { key } = await uploadService.uploadMedia(backendImage, 'message');
+        imageKey = key;
     }
-    const result=await axios.post(`${serverUrl}/api/message/send/${selectedUser._id}`,formData,{withCredentials:true})
+    
+    const result = await api.post(`/api/message/send/${selectedUser._id}`, {
+        message: input,
+        imageKey
+    });
+    
     dispatch(setMessages([...messages,result.data]))
     setInput("")
     setBackendImage(null)
@@ -47,7 +55,7 @@ const handleSendMessage=async (e)=>{
 
 const getAllMessages=async ()=>{
   try {
-    const result=await axios.get(`${serverUrl}/api/message/getAll/${selectedUser._id}`,{withCredentials:true})
+    const result = await api.get(`/api/message/getAll/${selectedUser._id}`);
     dispatch(setMessages(result.data))
   } catch (error) {
     console.log(error)

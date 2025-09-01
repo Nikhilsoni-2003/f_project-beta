@@ -13,6 +13,8 @@ import { setCurrentUserStory, setStoryData } from '../redux/storySlice';
 import { setLoopData } from '../redux/loopSlice';
 import { ClipLoader } from 'react-spinners';
 import { setUserData } from '../redux/userSlice';
+import uploadService from '../services/upload';
+import api from '../services/api';
 function Upload() {
     const navigate = useNavigate()
     const [uploadType, setUploadType] = useState("post")
@@ -39,45 +41,62 @@ function Upload() {
     }
 
 const uploadPost=async ()=>{
-   
     try {
-        const formData=new FormData()
-        formData.append("caption",caption)
-        formData.append("mediaType",mediaType)
-        formData.append("media",backendMedia)
-        const result=await axios.post(`${serverUrl}/api/post/upload`,formData,{withCredentials:true})
-       dispatch(setPostData([...postData,result.data]))
-       setLoading(false)
-       navigate("/")
+        // Upload media to S3 first
+        const { key } = await uploadService.uploadMedia(backendMedia, 'post');
+        
+        // Then create post with media key
+        const result = await api.post('/api/post/upload', {
+            caption,
+            mediaType,
+            mediaKey: key
+        });
+        
+        dispatch(setPostData([...postData, result.data]));
+        setLoading(false);
+        navigate("/");
     } catch (error) {
-        console.log(error)
+        console.log(error);
+        setLoading(false);
     }
 }
 
 const uploadStory=async ()=>{
     try {
-        const formData=new FormData()
-        formData.append("mediaType",mediaType)
-        formData.append("media",backendMedia)
-        const result=await axios.post(`${serverUrl}/api/story/upload`,formData,{withCredentials:true})
-       dispatch(setCurrentUserStory(result.data))
-         setLoading(false)
-       navigate("/")
+        // Upload media to S3 first
+        const { key } = await uploadService.uploadMedia(backendMedia, 'story');
+        
+        // Then create story with media key
+        const result = await api.post('/api/story/upload', {
+            mediaType,
+            mediaKey: key
+        });
+        
+        dispatch(setCurrentUserStory(result.data));
+        setLoading(false);
+        navigate("/");
     } catch (error) {
-        console.log(error)
+        console.log(error);
+        setLoading(false);
     }
 }
 const uploadLoop=async ()=>{
     try {
-        const formData=new FormData()
-        formData.append("caption",caption)
-        formData.append("media",backendMedia)
-        const result=await axios.post(`${serverUrl}/api/loop/upload`,formData,{withCredentials:true})
-         dispatch(setLoopData([...loopData,result.data]))
-         setLoading(false)
-       navigate("/")
+        // Upload media to S3 first
+        const { key } = await uploadService.uploadMedia(backendMedia, 'loop');
+        
+        // Then create loop with media key
+        const result = await api.post('/api/loop/upload', {
+            caption,
+            mediaKey: key
+        });
+        
+        dispatch(setLoopData([...loopData, result.data]));
+        setLoading(false);
+        navigate("/");
     } catch (error) {
-        console.log(error)
+        console.log(error);
+        setLoading(false);
     }
 }
 

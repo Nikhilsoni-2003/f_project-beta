@@ -32,16 +32,192 @@ Globals:
         COGNITO_CLIENT_ID: !Ref CognitoClientId
         S3_BUCKET_NAME: !Ref S3BucketName
         CLOUDFRONT_DOMAIN: !Ref CloudFrontDomain
-        USERS_TABLE: Users
-        POSTS_TABLE: Posts
-        LOOPS_TABLE: Loops
-        STORIES_TABLE: Stories
-        MESSAGES_TABLE: Messages
-        CONVERSATIONS_TABLE: Conversations
-        NOTIFICATIONS_TABLE: Notifications
-        CONNECTIONS_TABLE: Connections
+        USERS_TABLE: !Ref UsersTable
+        POSTS_TABLE: !Ref PostsTable
+        LOOPS_TABLE: !Ref LoopsTable
+        STORIES_TABLE: !Ref StoriesTable
+        MESSAGES_TABLE: !Ref MessagesTable
+        CONVERSATIONS_TABLE: !Ref ConversationsTable
+        NOTIFICATIONS_TABLE: !Ref NotificationsTable
+        CONNECTIONS_TABLE: !Ref ConnectionsTable
 
 Resources:
+  # DynamoDB Tables
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: userName
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: userName-index
+          KeySchema:
+            - AttributeName: userName
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  PostsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Posts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: postId
+          AttributeType: S
+        - AttributeName: authorId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: postId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: author-index
+          KeySchema:
+            - AttributeName: authorId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  LoopsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Loops
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: loopId
+          AttributeType: S
+        - AttributeName: authorId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: loopId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: author-index
+          KeySchema:
+            - AttributeName: authorId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  StoriesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Stories
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: storyId
+          AttributeType: S
+        - AttributeName: authorId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: storyId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: author-index
+          KeySchema:
+            - AttributeName: authorId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Messages
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: messageId
+          AttributeType: S
+        - AttributeName: conversationId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: messageId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: conversation-index
+          KeySchema:
+            - AttributeName: conversationId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  ConversationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Conversations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: conversationId
+          AttributeType: S
+        - AttributeName: participant1
+          AttributeType: S
+        - AttributeName: participant2
+          AttributeType: S
+      KeySchema:
+        - AttributeName: conversationId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: participant1-index
+          KeySchema:
+            - AttributeName: participant1
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: participant2-index
+          KeySchema:
+            - AttributeName: participant2
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  NotificationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Notifications
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: notificationId
+          AttributeType: S
+        - AttributeName: receiverId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: notificationId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: receiver-index
+          KeySchema:
+            - AttributeName: receiverId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  ConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Connections
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: connectionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connectionId
+          KeyType: HASH
+
   # API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
@@ -59,17 +235,6 @@ Resources:
           MockAuthorizer:
             FunctionArn: !GetAtt MockAuthorizer.Arn
 
-  # Cognito Authorizer
-  CognitoUserPoolAuthorizer:
-    Type: AWS::ApiGateway::Authorizer
-    Properties:
-      Name: CognitoUserPoolAuthorizer
-      Type: COGNITO_USER_POOLS
-      IdentitySource: method.request.header.Authorization
-      RestApiId: !Ref ApiGateway
-      ProviderARNs:
-        - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
-
   # Mock Authorizer for Local Testing
   MockAuthorizer:
     Type: AWS::Serverless::Function
@@ -78,22 +243,12 @@ Resources:
       Handler: mockAuthorizer.handler
       Runtime: nodejs18.x
 
-  # WebSocket API
-  WebSocketApi:
-    Type: AWS::ApiGatewayV2::Api
-    Properties:
-      Name: SocialMediaWebSocket
-      ProtocolType: WEBSOCKET
-      RouteSelectionExpression: "$request.body.action"
-
-  # Lambda Functions
+  # Auth Functions (No Auth Required)
   AuthFunction:
     Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
     Properties:
       CodeUri: src/functions/auth/
       Handler: index.handler
-      Runtime: nodejs18.x
       Events:
         SignUp:
           Type: Api
@@ -102,7 +257,7 @@ Resources:
             Path: /api/auth/signup
             Method: post
             Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
+              Authorizer: NONE
         SignIn:
           Type: Api
           Properties:
@@ -110,7 +265,7 @@ Resources:
             Path: /api/auth/signin
             Method: post
             Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
+              Authorizer: NONE
         SignOut:
           Type: Api
           Properties:
@@ -118,7 +273,7 @@ Resources:
             Path: /api/auth/signout
             Method: get
             Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
+              Authorizer: NONE
         ForgotPassword:
           Type: Api
           Properties:
@@ -126,7 +281,7 @@ Resources:
             Path: /api/auth/forgot-password
             Method: post
             Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
+              Authorizer: NONE
         ResetPassword:
           Type: Api
           Properties:
@@ -134,10 +289,10 @@ Resources:
             Path: /api/auth/reset-password
             Method: post
             Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
+              Authorizer: NONE
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: Users
+            TableName: !Ref UsersTable
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
@@ -145,9 +300,9 @@ Resources:
                 - cognito-idp:*
               Resource: '*'
 
+  # User Functions
   UserFunction:
     Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
     Properties:
       CodeUri: src/functions/user/
       Handler: index.handler
@@ -158,65 +313,55 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /api/user/current
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
         GetProfile:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/user/getProfile/{userName}
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
         EditProfile:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/user/editProfile
             Method: post
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
         Follow:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/user/follow/{userId}
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
         GetSuggested:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/user/suggested
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
         Search:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/user/search
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
         GetFollowing:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/user/followingList
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: Users
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PostsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref NotificationsTable
         - S3CrudPolicy:
             BucketName: !Ref S3BucketName
 
-  PostUploadFunction:
+  # Post Functions
+  PostFunction:
     Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
     Properties:
       CodeUri: src/functions/post/
       Handler: index.handler
@@ -227,111 +372,43 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /api/post/upload
             Method: post
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Posts
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  PostGetAllFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/post/
-      Handler: index.handler
-      Events:
         GetAll:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/post/getAll
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Posts
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  PostLikeFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/post/
-      Handler: index.handler
-      Events:
         Like:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/post/like/{postId}
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Posts
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  PostCommentFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/post/
-      Handler: index.handler
-      Events:
         Comment:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/post/comment/{postId}
             Method: post
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Posts
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  PostSavedFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/post/
-      Handler: index.handler
-      Events:
         Saved:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/post/saved/{postId}
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: Posts
+            TableName: !Ref PostsTable
         - DynamoDBCrudPolicy:
-            TableName: Users
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref NotificationsTable
         - S3CrudPolicy:
             BucketName: !Ref S3BucketName
 
-  LoopUploadFunction:
+  # Loop Functions
+  LoopFunction:
     Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
     Properties:
       CodeUri: src/functions/loop/
       Handler: index.handler
@@ -342,88 +419,35 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /api/loop/upload
             Method: post
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Loops
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  LoopGetAllFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/loop/
-      Handler: index.handler
-      Events:
         GetAll:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/loop/getAll
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Loops
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  LoopLikeFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/loop/
-      Handler: index.handler
-      Events:
         Like:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/loop/like/{loopId}
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Loops
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  LoopCommentFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/loop/
-      Handler: index.handler
-      Events:
         Comment:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/loop/comment/{loopId}
             Method: post
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: Loops
+            TableName: !Ref LoopsTable
         - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref NotificationsTable
 
-  StoryUploadFunction:
+  # Story Functions
+  StoryFunction:
     Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
     Properties:
       CodeUri: src/functions/story/
       Handler: index.handler
@@ -434,88 +458,33 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /api/story/upload
             Method: post
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Stories
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  StoryGetAllFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/story/
-      Handler: index.handler
-      Events:
         GetAll:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/story/getAll
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Stories
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  StoryGetByUserNameFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/story/
-      Handler: index.handler
-      Events:
         GetByUserName:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/story/getByUserName/{userName}
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Stories
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  StoryViewFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/story/
-      Handler: index.handler
-      Events:
         View:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/story/view/{storyId}
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: Stories
+            TableName: !Ref StoriesTable
         - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
+            TableName: !Ref UsersTable
 
-  MessageSendFunction:
+  # Message Functions
+  MessageFunction:
     Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
     Properties:
       CodeUri: src/functions/message/
       Handler: index.handler
@@ -526,71 +495,29 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /api/message/send/{userId}
             Method: post
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Messages
-        - DynamoDBCrudPolicy:
-            TableName: Conversations
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  MessageGetAllFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/message/
-      Handler: index.handler
-      Events:
         GetAll:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/message/getAll/{userId}
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: Messages
-        - DynamoDBCrudPolicy:
-            TableName: Conversations
-        - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
-
-  MessageGetPrevChatsFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
-    Properties:
-      CodeUri: src/functions/message/
-      Handler: index.handler
-      Events:
         GetPrevChats:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/message/prevChats
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: Messages
+            TableName: !Ref MessagesTable
         - DynamoDBCrudPolicy:
-            TableName: Conversations
+            TableName: !Ref ConversationsTable
         - DynamoDBCrudPolicy:
-            TableName: Users
-        - S3CrudPolicy:
-            BucketName: !Ref S3BucketName
+            TableName: !Ref UsersTable
 
+  # Notification Functions
   NotificationFunction:
     Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
     Properties:
       CodeUri: src/functions/notification/
       Handler: index.handler
@@ -601,23 +528,25 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /api/user/getAllNotifications
             Method: get
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
         MarkAsRead:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /api/user/markAsRead
             Method: post
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: Notifications
+            TableName: !Ref NotificationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PostsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LoopsTable
 
+  # Media Functions
   MediaFunction:
     Type: AWS::Serverless::Function
-    DependsOn: CognitoUserPoolAuthorizer
     Properties:
       CodeUri: src/functions/media/
       Handler: index.handler
@@ -628,11 +557,17 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /api/media/presigned-url
             Method: post
-            Auth:
-              Authorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref S3BucketName
+
+  # WebSocket API
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: SocialMediaWebSocket
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
 
   # WebSocket Functions
   WebSocketConnectFunction:
@@ -640,27 +575,36 @@ Resources:
     Properties:
       CodeUri: src/functions/websocket/
       Handler: connect.handler
+      Environment:
+        Variables:
+          WEBSOCKET_API_ID: !Ref WebSocketApi
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: Connections
+            TableName: !Ref ConnectionsTable
 
   WebSocketDisconnectFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/functions/websocket/
       Handler: disconnect.handler
+      Environment:
+        Variables:
+          WEBSOCKET_API_ID: !Ref WebSocketApi
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: Connections
+            TableName: !Ref ConnectionsTable
 
   WebSocketMessageFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/functions/websocket/
       Handler: message.handler
+      Environment:
+        Variables:
+          WEBSOCKET_API_ID: !Ref WebSocketApi
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: Connections
+            TableName: !Ref ConnectionsTable
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
@@ -754,270 +698,15 @@ Resources:
       FunctionName: !Ref WebSocketMessageFunction
       Principal: apigateway.amazonaws.com
 
-  # API Gateway Deployment
-  ApiGatewayDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn:
-      - AuthFunctionSignUpPermissionprod
-      - AuthFunctionSignInPermissionprod
-      - AuthFunctionForgotPasswordPermissionprod
-      - AuthFunctionResetPasswordPermissionprod
-      - UserFunctionGetCurrentUserPermissionprod
-      - UserFunctionGetProfilePermissionprod
-      - UserFunctionEditProfilePermissionprod
-      - UserFunctionFollowPermissionprod
-      - UserFunctionGetSuggestedPermissionprod
-      - UserFunctionSearchPermissionprod
-      - UserFunctionGetFollowingPermissionprod
-      - PostUploadPermissionprod
-      - PostGetAllPermissionprod
-      - PostLikePermissionprod
-      - PostCommentPermissionprod
-      - PostSavedPermissionprod
-      - LoopUploadPermissionprod
-      - LoopGetAllPermissionprod
-      - LoopLikePermissionprod
-      - LoopCommentPermissionprod
-      - StoryUploadPermissionprod
-      - StoryGetAllPermissionprod
-      - StoryGetByUserNamePermissionprod
-      - StoryViewPermissionprod
-      - MessageSendPermissionprod
-      - MessageGetAllPermissionprod
-      - MessageGetPrevChatsPermissionprod
-      - NotificationFunctionGetAllPermissionprod
-      - NotificationFunctionMarkAsReadPermissionprod
-      - MediaFunctionGetPresignedUrlPermissionprod
-    Properties:
-      RestApiId: !Ref ApiGateway
-      StageName: prod
-
-  # API Gateway Stage
-  ApiGatewayprodStage:
-    Type: AWS::ApiGateway::Stage
-    DependsOn: ApiGatewayDeployment
-    Properties:
-      StageName: prod
-      RestApiId: !Ref ApiGateway
-      DeploymentId: !Ref ApiGatewayDeployment
-
-  # Lambda Permissions for API Gateway (auto-generated by SAM, listed for DependsOn)
-  AuthFunctionSignUpPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref AuthFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  AuthFunctionSignInPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref AuthFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  AuthFunctionForgotPasswordPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref AuthFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  AuthFunctionResetPasswordPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref AuthFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  UserFunctionGetCurrentUserPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref UserFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  UserFunctionGetProfilePermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref UserFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  UserFunctionEditProfilePermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref UserFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  UserFunctionFollowPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref UserFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  UserFunctionGetSuggestedPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref UserFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  UserFunctionSearchPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref UserFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  UserFunctionGetFollowingPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref UserFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  PostFunctionUploadPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref PostUploadFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  PostFunctionGetAllPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref PostGetAllFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  PostFunctionLikePermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref PostLikeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  PostFunctionCommentPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref PostCommentFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  PostFunctionSavedPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref PostSavedFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  LoopUploadPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref LoopUploadFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  LoopGetAllPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref LoopGetAllFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  LoopLikePermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref LoopLikeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  LoopCommentPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref LoopCommentFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  StoryUploadPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref StoryUploadFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  StoryGetAllPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref StoryGetAllFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  StoryGetByUserNamePermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref StoryGetByUserNameFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  StoryViewPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref StoryViewFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  MessageSendPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref MessageSendFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  MessageGetAllPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref MessageGetAllFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  MessageGetPrevChatsPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref MessageGetPrevChatsFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  NotificationFunctionGetAllPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref NotificationFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  NotificationFunctionMarkAsReadPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref NotificationFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-  MediaFunctionGetPresignedUrlPermissionprod:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref MediaFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
-
 Outputs:
   ApiGatewayUrl:
     Description: API Gateway endpoint URL
     Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
   
   WebSocketUrl:
     Description: WebSocket API endpoint URL
     Value: !Sub 'wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Export:
+      Name: !Sub '${AWS::StackName}-WebSocketUrl'

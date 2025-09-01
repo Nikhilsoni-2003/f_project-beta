@@ -9,6 +9,7 @@ import { ClipLoader } from "react-spinners";
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setUserData } from '../redux/userSlice';
+import authService from '../services/auth';
 function SignIn() {
 const [inputClicked,setInputClicked]=useState({
     userName:false,
@@ -25,13 +26,13 @@ const handleSignIn=async ()=>{
   setLoading(true)
   setErr("")
   try {
-    const result=await axios.post(`${serverUrl}/api/auth/signin`,{userName,password},{withCredentials:true})
-   dispatch(setUserData(result.data))
+    const result = await authService.signIn(userName, password);
+    dispatch(setUserData(result.user));
     setLoading(false)
   } catch (error) {
     console.log(error)
     setLoading(false)
-    setErr(error.response?.data?.message)
+    setErr(error.message)
   }
 }
 

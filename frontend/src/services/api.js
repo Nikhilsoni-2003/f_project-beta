@@ -1,11 +1,13 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_GATEWAY_URL || 'https://your-api-gateway-url.execute-api.eu-north-1.amazonaws.com/prod';
+const API_BASE_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:3000';
 
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: false,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 // Add auth token to requests

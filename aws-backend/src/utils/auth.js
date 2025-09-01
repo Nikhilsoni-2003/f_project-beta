@@ -9,12 +9,22 @@ const verifier = CognitoJwtVerifier.create({
 
 const extractUserFromToken = async (event) => {
   try {
-    const authHeader = event.headers.Authorization || event.headers.authorization;
+    const authHeader = event.headers?.Authorization || event.headers?.authorization;
     if (!authHeader) {
       throw new Error('No authorization header');
     }
 
     const token = authHeader.replace('Bearer ', '');
+    
+    // For local development, use mock token
+    if (process.env.Environment === 'local' && token === 'mockToken') {
+      return {
+        userId: 'test-user-id',
+        email: 'test@example.com',
+        userName: 'test-user'
+      };
+    }
+    
     const payload = await verifier.verify(token);
     
     return {

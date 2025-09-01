@@ -25,6 +25,7 @@ import { setOnlineUsers } from './redux/socketSlice';
 import { setNotificationData } from './redux/userSlice';
 import Search from './pages/Search';
 import Notifications from './pages/Notifications';
+import authService from './services/auth';
 
 // Export serverUrl for use in other components
 export const serverUrl = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:3000';
@@ -32,6 +33,31 @@ export const serverUrl = import.meta.env.VITE_API_GATEWAY_URL || 'http://localho
 function App() {
   const { userData: reduxUserData, notificationData } = useSelector((state) => state.user) || { userData: null, notificationData: [] };
   const dispatch = useDispatch();
+
+  // Check for stored auth token on app load
+  useEffect(() => {
+    const token = authService.getToken();
+    if (token && !reduxUserData) {
+      // Token exists but no user data, fetch current user
+      const fetchCurrentUser = async () => {
+        try {
+          const response = await fetch(`${serverUrl}/api/user/current`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          if (response.ok) {
+            const userData = await response.json();
+            dispatch(setUserData(userData));
+          }
+        } catch (error) {
+          console.error('Failed to fetch current user:', error);
+          authService.clearTokens();
+        }
+      };
+      fetchCurrentUser();
+    }
+  }, []);
 
   // Use custom hooks with fallback to prevent undefined errors
   const hookResult = useGetCurrentUser() || { userData: null, loading: true };

@@ -80,7 +80,7 @@ const signUp = async ({ name, userName, email, password }) => {
 
     await dynamodb.put(process.env.USERS_TABLE, user);
 
-    return createSuccessResponse(user);
+    return createSuccessResponse({ user, tokens });
   } catch (error) {
     console.error('SignUp Error:', error);
     return createErrorResponse(400, error.message);
@@ -106,7 +106,7 @@ const signIn = async ({ userName, password }) => {
     // Sign in with Cognito
     const tokens = await cognito.signIn(user.email, password);
 
-    return createSuccessResponse(user);
+    return createSuccessResponse({ user, tokens });
   } catch (error) {
     console.error('SignIn Error:', error);
     return createErrorResponse(400, 'Invalid credentials');

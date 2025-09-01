@@ -26,6 +26,11 @@ class AuthService {
         throw new Error(data.message);
       }
 
+      // Store tokens if returned
+      if (data.tokens) {
+        this.setTokens(data.tokens.accessToken, data.tokens.idToken, data.tokens.refreshToken);
+      }
+
       return data;
     } catch (error) {
       throw error;
@@ -46,6 +51,11 @@ class AuthService {
       
       if (!response.ok) {
         throw new Error(data.message);
+      }
+
+      // Store tokens if returned
+      if (data.tokens) {
+        this.setTokens(data.tokens.accessToken, data.tokens.idToken, data.tokens.refreshToken);
       }
 
       return data;
@@ -125,6 +135,12 @@ class AuthService {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('idToken', idToken);
     localStorage.setItem('refreshToken', refreshToken);
+  }
+
+  clearTokens() {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('idToken');
+    localStorage.removeItem('refreshToken');
   }
 
   isAuthenticated() {
