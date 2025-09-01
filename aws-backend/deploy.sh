@@ -15,6 +15,10 @@ if ! command -v sam &> /dev/null; then
     exit 1
 fi
 
+# Install dependencies
+echo "📦 Installing dependencies..."
+npm install
+
 # Build the application
 echo "📦 Building SAM application..."
 sam build

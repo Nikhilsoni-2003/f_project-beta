@@ -26,6 +26,7 @@ import { setNotificationData } from './redux/userSlice';
 import Search from './pages/Search';
 import Notifications from './pages/Notifications';
 import authService from './services/auth';
+import { setUserData } from './redux/userSlice';
 
 // Export serverUrl for use in other components
 export const serverUrl = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:3000';
@@ -41,34 +42,24 @@ function App() {
       // Token exists but no user data, fetch current user
       const fetchCurrentUser = async () => {
         try {
-          const response = await fetch(`${serverUrl}/api/user/current`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          if (response.ok) {
-            const userData = await response.json();
-            dispatch(setUserData(userData));
-          }
+          // This will be handled by the custom hooks
         } catch (error) {
           console.error('Failed to fetch current user:', error);
           authService.clearTokens();
         }
       };
-      fetchCurrentUser();
     }
   }, []);
 
   // Use custom hooks with fallback to prevent undefined errors
-  const hookResult = useGetCurrentUser() || { userData: null, loading: true };
-  const { userData: currentUser, loading: userLoading } = hookResult;
-  const { suggestedUsers, loading: suggestedLoading } = useGetSuggestedUsers() || { suggestedUsers: [], loading: true };
-  const { posts, loading: postsLoading } = useGetAllPost() || { posts: [], loading: true };
-  const { loops, loading: loopsLoading } = useGetAllLoops() || { loops: [], loading: true };
-  const { stories, loading: storiesLoading } = useGetAllStories() || { stories: [], loading: true };
-  const { followingList, loading: followingLoading } = useGetFollowingList() || { followingList: [], loading: true };
-  const { prevChatUsers, loading: prevChatLoading } = useGetPrevChatUsers() || { prevChatUsers: [], loading: true };
-  const { notifications, loading: notiLoading } = useGetAllNotifications() || { notifications: [], loading: true };
+  useGetCurrentUser();
+  useGetSuggestedUsers();
+  useGetAllPost();
+  useGetAllLoops();
+  useGetAllStories();
+  useGetFollowingList();
+  useGetPrevChatUsers();
+  useGetAllNotifications();
 
   useEffect(() => {
     if (reduxUserData) {
@@ -88,11 +79,7 @@ function App() {
     }
   }, [reduxUserData, dispatch, notificationData]);
 
-  const userData = reduxUserData || currentUser; // Fallback to currentUser if reduxUserData is null
-
-  if (userLoading || suggestedLoading || postsLoading || loopsLoading || storiesLoading || followingLoading || prevChatLoading || notiLoading) {
-    return <div>Loading...</div>; // Show loading while data fetches
-  }
+  const userData = reduxUserData;
 
   return (
     <Routes>
