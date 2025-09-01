@@ -4,7 +4,7 @@ exports.handler = async (event) => {
   const { connectionId } = event.requestContext;
 
   try {
-    await dynamodb.delete(process.env.CONNECTIONS_TABLE, { connectionId });
+    await dynamodb.delete('Connections', { connectionId });
 
     // Broadcast updated online users
     await broadcastOnlineUsers();
@@ -24,7 +24,7 @@ exports.handler = async (event) => {
 
 const broadcastOnlineUsers = async () => {
   try {
-    const connections = await dynamodb.scan(process.env.CONNECTIONS_TABLE);
+    const connections = await dynamodb.scan('Connections');
     const onlineUserIds = [...new Set(connections.map(conn => conn.userId))];
     
     // This would typically broadcast to all connections
