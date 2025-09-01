@@ -48,9 +48,9 @@ Resources:
     Properties:
       StageName: prod
       Cors:
-        AllowMethods: "'*'"
-        AllowHeaders: "'*'"
-        AllowOrigin: "'*'"
+        AllowMethods: "*"
+        AllowHeaders: "*"
+        AllowOrigin: "*"
       Auth:
         DefaultAuthorizer: CognitoUserPoolAuthorizer
         Authorizers:
