@@ -51,7 +51,7 @@ Resources:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
-        AllowCredentials: false
+        AllowCredentials: true
       Auth:
         DefaultAuthorizer: CognitoUserPoolAuthorizer
         Authorizers:
