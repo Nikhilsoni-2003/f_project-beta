@@ -50,7 +50,7 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: !Sub "'https://dsvtq5o5a0ykh.cloudfront.net'"  
+        AllowOrigin: !Sub https://dsvtq5o5a0ykh.cloudfront.net
         AllowCredentials: true
       Auth:
         DefaultAuthorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
