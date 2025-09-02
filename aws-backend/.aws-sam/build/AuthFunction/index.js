@@ -6,7 +6,7 @@ const { createSuccessResponse, createErrorResponse } = require('../../utils/resp
 exports.handler = async (event) => {
   const { httpMethod, path, body } = event;
   const parsedBody = body ? JSON.parse(body) : {};
-
+  
   try {
     switch (true) {
       case httpMethod === 'POST' && path === '/api/auth/signup':
