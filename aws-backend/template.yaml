@@ -48,9 +48,10 @@ Resources:
     Properties:
       StageName: prod
       Cors:
-        AllowMethods: "*"
-        AllowHeaders: "*"
-        AllowOrigin: "*"
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+        AllowCredentials: false
       Auth:
         DefaultAuthorizer: CognitoUserPoolAuthorizer
         Authorizers:
