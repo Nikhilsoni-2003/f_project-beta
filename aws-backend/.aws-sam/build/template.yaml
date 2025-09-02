@@ -6,18 +6,24 @@ Parameters:
   CognitoUserPoolId:
     Type: String
     Default: eu-north-1_RFZvLrDd9
+    Description: Cognito User Pool ID
   CognitoClientId:
     Type: String
     Default: 7p0e3uioc8mtq69m4qq12540mn
+    Description: Cognito App Client ID
   S3BucketName:
     Type: String
     Default: serverless-social-media-storage-123
+    Description: S3 bucket for media storage
   CloudFrontDomain:
     Type: String
     Default: dsvtq5o5a0ykh.cloudfront.net
+    Description: CloudFront distribution domain
   Environment:
     Type: String
     Default: prod
+    AllowedValues: [local, dev, prod]
+    Description: Environment type
 
 Conditions:
   IsLocal: !Equals [!Ref Environment, "local"]
@@ -50,8 +56,8 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: !Sub https://dsvtq5o5a0ykh.cloudfront.net
-        AllowCredentials: true
+        AllowOrigin: "'*'"
+        AllowCredentials: false
       Auth:
         DefaultAuthorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
         Authorizers:
@@ -63,6 +69,7 @@ Resources:
   # Mock Authorizer for Local Testing
   MockAuthorizer:
     Type: AWS::Serverless::Function
+    Condition: IsLocal
     Properties:
       CodeUri: mock/
       Handler: mockAuthorizer.handler
@@ -130,8 +137,22 @@ Resources:
                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
             - Effect: Allow
               Action:
-                - cognito-idp:*
-              Resource: '*'
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminSetUserPassword
+                - cognito-idp:InitiateAuth
+                - cognito-idp:AdminGetUser
+                - cognito-idp:ForgotPassword
+                - cognito-idp:ConfirmForgotPassword
+              Resource: !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}'
+
+  # Lambda Permission for Auth Function
+  AuthFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AuthFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
 
   # User Functions
   UserFunction:
@@ -206,6 +227,15 @@ Resources:
                 - s3:DeleteObject
               Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
 
+  # Lambda Permission for User Function
+  UserFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+
   # Post Functions
   PostFunction:
     Type: AWS::Serverless::Function
@@ -267,6 +297,15 @@ Resources:
                 - s3:DeleteObject
               Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
 
+  # Lambda Permission for Post Function
+  PostFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PostFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+
   # Loop Functions
   LoopFunction:
     Type: AWS::Serverless::Function
@@ -316,6 +355,15 @@ Resources:
                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
 
+  # Lambda Permission for Loop Function
+  LoopFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LoopFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+
   # Story Functions
   StoryFunction:
     Type: AWS::Serverless::Function
@@ -355,6 +403,7 @@ Resources:
                 - dynamodb:GetItem
                 - dynamodb:PutItem
                 - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
                 - dynamodb:Query
                 - dynamodb:Scan
               Resource: 
@@ -362,6 +411,15 @@ Resources:
                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories/index/*'
                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+
+  # Lambda Permission for Story Function
+  StoryFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref StoryFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
 
   # Message Functions
   MessageFunction:
@@ -406,6 +464,15 @@ Resources:
                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
 
+  # Lambda Permission for Message Function
+  MessageFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MessageFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+
   # Notification Functions
   NotificationFunction:
     Type: AWS::Serverless::Function
@@ -445,6 +512,15 @@ Resources:
                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops'
                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*'
 
+  # Lambda Permission for Notification Function
+  NotificationFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref NotificationFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+
   # Media Functions
   MediaFunction:
     Type: AWS::Serverless::Function
@@ -466,8 +542,16 @@ Resources:
                 - s3:GetObject
                 - s3:PutObject
                 - s3:DeleteObject
-                - s3:GetSignedUrl
               Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+
+  # Lambda Permission for Media Function
+  MediaFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MediaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
 
   # WebSocket API
   WebSocketApi:
@@ -601,6 +685,12 @@ Resources:
       - ConnectRoute
       - DisconnectRoute
       - MessageRoute
+      - ConnectIntegration
+      - DisconnectIntegration
+      - MessageIntegration
+      - WebSocketConnectPermission
+      - WebSocketDisconnectPermission
+      - WebSocketMessagePermission
     Properties:
       ApiId: !Ref WebSocketApi
 
@@ -618,6 +708,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref WebSocketConnectFunction
       Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
 
   WebSocketDisconnectPermission:
     Type: AWS::Lambda::Permission
@@ -625,6 +716,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref WebSocketDisconnectFunction
       Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
 
   WebSocketMessagePermission:
     Type: AWS::Lambda::Permission
@@ -632,6 +724,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref WebSocketMessageFunction
       Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
 
 Outputs:
   ApiGatewayUrl:
