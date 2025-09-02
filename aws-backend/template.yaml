@@ -26,7 +26,8 @@ Parameters:
     Description: Environment type
 
 Conditions:
-  IsLocal: !Equals [!Ref Environment, "local"]
+  IsLocal: !Equals [!Ref Environment, local]
+  IsDev: !Equals [!Ref Environment, dev]
 
 Globals:
   Function:
@@ -52,18 +53,19 @@ Resources:
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
-      StageName: prod
+      StageName: !If [IsLocal, local, !If [IsDev, dev, prod]]
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: "'*'"
-        AllowCredentials: false
+        AllowOrigin: !If [IsLocal, "'*'", !Sub "'https://${CloudFrontDomain}'"]
+        AllowCredentials: !If [IsLocal, false, true]
       Auth:
-        DefaultAuthorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
+        DefaultAuthorizer: CognitoUserPoolAuthorizer
         Authorizers:
           CognitoUserPoolAuthorizer:
             UserPoolArn: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
           MockAuthorizer:
+            Condition: IsLocal
             FunctionArn: !GetAtt MockAuthorizer.Arn
 
   # Mock Authorizer for Local Testing
@@ -89,7 +91,7 @@ Resources:
             Path: /api/auth/signup
             Method: post
             Auth:
-              Authorizer: NONE
+              Authorizer: !If [IsLocal, MockAuthorizer, NONE]
         SignIn:
           Type: Api
           Properties:
@@ -97,7 +99,7 @@ Resources:
             Path: /api/auth/signin
             Method: post
             Auth:
-              Authorizer: NONE
+              Authorizer: !If [IsLocal, MockAuthorizer, NONE]
         SignOut:
           Type: Api
           Properties:
@@ -105,7 +107,7 @@ Resources:
             Path: /api/auth/signout
             Method: get
             Auth:
-              Authorizer: NONE
+              Authorizer: !If [IsLocal, MockAuthorizer, NONE]
         ForgotPassword:
           Type: Api
           Properties:
@@ -113,7 +115,7 @@ Resources:
             Path: /api/auth/forgot-password
             Method: post
             Auth:
-              Authorizer: NONE
+              Authorizer: !If [IsLocal, MockAuthorizer, NONE]
         ResetPassword:
           Type: Api
           Properties:
@@ -121,7 +123,7 @@ Resources:
             Path: /api/auth/reset-password
             Method: post
             Auth:
-              Authorizer: NONE
+              Authorizer: !If [IsLocal, MockAuthorizer, NONE]
       Policies:
         - Version: '2012-10-17'
           Statement:
@@ -152,7 +154,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref AuthFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/api/auth/*'
 
   # User Functions
   UserFunction:
@@ -234,7 +236,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref UserFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/GET,POST/api/user/*'
 
   # Post Functions
   PostFunction:
@@ -304,7 +306,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref PostFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/GET,POST/api/post/*'
 
   # Loop Functions
   LoopFunction:
@@ -362,7 +364,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref LoopFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/GET,POST/api/loop/*'
 
   # Story Functions
   StoryFunction:
@@ -419,7 +421,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref StoryFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/GET,POST/api/story/*'
 
   # Message Functions
   MessageFunction:
@@ -471,7 +473,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref MessageFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/GET,POST/api/message/*'
 
   # Notification Functions
   NotificationFunction:
@@ -519,7 +521,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref NotificationFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/GET,POST/api/user/*'
 
   # Media Functions
   MediaFunction:
@@ -551,7 +553,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref MediaFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/api/media/*'
 
   # WebSocket API
   WebSocketApi:
