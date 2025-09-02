@@ -50,10 +50,10 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: "'*'"
-        AllowCredentials: false
+        AllowOrigin: !Sub "'https://dsvtq5o5a0ykh.cloudfront.net'"  
+        AllowCredentials: true
       Auth:
-        DefaultAuthorizer: CognitoUserPoolAuthorizer
+        DefaultAuthorizer: !If [IsLocal, MockAuthorizer, CognitoUserPoolAuthorizer]
         Authorizers:
           CognitoUserPoolAuthorizer:
             UserPoolArn: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
