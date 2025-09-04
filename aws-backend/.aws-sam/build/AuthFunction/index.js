@@ -7,6 +7,18 @@ exports.handler = async (event) => {
   const { httpMethod, path, body } = event;
   const parsedBody = body ? JSON.parse(body) : {};
   
+  if (httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      },
+      body: JSON.stringify({ message: 'CORS preflight OK' })
+    };
+  }
+
   try {
     switch (true) {
       case httpMethod === 'POST' && path === '/api/auth/signup':
