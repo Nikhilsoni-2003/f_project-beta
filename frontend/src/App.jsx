@@ -29,7 +29,12 @@ import authService from './services/auth';
 import { setUserData } from './redux/userSlice';
 
 // Export serverUrl for use in other components
-export const serverUrl = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:3000';
+export const serverUrl = import.meta.env.VITE_API_GATEWAY_URL;
+
+// Validate API URL
+if (!serverUrl) {
+  console.error('VITE_API_GATEWAY_URL is not defined in environment variables');
+}
 
 function App() {
   const { userData: reduxUserData, notificationData } = useSelector((state) => state.user) || { userData: null, notificationData: [] };
