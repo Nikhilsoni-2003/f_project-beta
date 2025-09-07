@@ -8,13 +8,20 @@ const allowedOrigins = [
   'https://dsvtq5o5a0ykh.cloudfront.net'
 ];
 
-const getCorsHeaders = (origin) => {
-  return {
-    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-  };
-};
+const getCorsHeaders = (origin) => ({
+  'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Credentials': 'true'
+});
+
+const withCors = (response, origin) => ({
+  ...response,
+  headers: {
+    ...(response.headers || {}),
+    ...getCorsHeaders(origin)
+  }
+});
 
 exports.handler = async (event) => {
   const { httpMethod, path, pathParameters, body, headers } = event;
@@ -23,11 +30,10 @@ exports.handler = async (event) => {
 
   // Preflight response
   if (httpMethod === 'OPTIONS') {
-    return {
+    return withCors({
       statusCode: 200,
-      headers: getCorsHeaders(origin),
       body: JSON.stringify({ message: 'CORS preflight OK' })
-    };
+    }, origin);
   }
 
   try {
@@ -51,18 +57,10 @@ exports.handler = async (event) => {
         response = createErrorResponse(404, 'Route not found');
     }
 
-    // Always attach CORS headers
-    response.headers = {
-      ...(response.headers || {}),
-      ...getCorsHeaders(origin)
-    };
-
-    return response;
+    return withCors(response, origin);
   } catch (error) {
     console.error('Loop Handler Error:', error);
-    const response = createErrorResponse(500, error.message);
-    response.headers = getCorsHeaders(origin);
-    return response;
+    return withCors(createErrorResponse(500, error.message), origin);
   }
 };
 

@@ -2,52 +2,77 @@ const { v4: uuidv4 } = require('uuid');
 const dynamodb = require('../../utils/dynamodb');
 const s3 = require('../../utils/s3');
 const { extractUserFromToken } = require('../../utils/auth');
+const { createSuccessResponse, createErrorResponse } = require('../../utils/response');
 
-// ✅ Common response with CORS
-const sendResponse = (statusCode, body) => {
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://dsvtq5o5a0ykh.cloudfront.net'
+];
+
+const getCorsHeaders = (origin) => {
   return {
-    statusCode,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    },
-    body: JSON.stringify(body),
+    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true'
   };
 };
 
 exports.handler = async (event) => {
   const { httpMethod, path, pathParameters, queryStringParameters, body } = event;
   const parsedBody = body ? JSON.parse(body) : {};
+  const origin = headers?.origin || headers?.Origin || 'http://localhost:5173';
 
   if (httpMethod === 'OPTIONS') {
-    return sendResponse(200, { message: 'CORS preflight OK' });
+    return {
+      statusCode: 200,
+      headers: getCorsHeaders(origin),
+      body: JSON.stringify({ message: 'CORS preflight OK' })
+    };
   }
 
   try {
     const currentUser = await extractUserFromToken(event);
+    let response;
 
     switch (true) {
       case httpMethod === 'GET' && path === '/api/user/current':
-        return await getCurrentUser(currentUser);
+        response = await getCurrentUser(currentUser);
+        break;
       case httpMethod === 'GET' && path.includes('/api/user/getProfile/'):
-        return await getProfile(pathParameters.userName);
+        response = await getProfile(pathParameters.userName);
+        break;
       case httpMethod === 'POST' && path === '/api/user/editProfile':
-        return await editProfile(currentUser, parsedBody);
+        response = await editProfile(currentUser, parsedBody);
+        break;
       case httpMethod === 'GET' && path.includes('/api/user/follow/'):
-        return await followUser(currentUser, pathParameters.userId);
+        response = await followUser(currentUser, pathParameters.userId);
+        break;
       case httpMethod === 'GET' && path === '/api/user/suggested':
-        return await getSuggestedUsers(currentUser);
+        response = await getSuggestedUsers(currentUser);
+        break;
       case httpMethod === 'GET' && path === '/api/user/search':
-        return await searchUsers(queryStringParameters.keyWord);
+        response = await searchUsers(queryStringParameters.keyWord);
+        break;
       case httpMethod === 'GET' && path === '/api/user/followingList':
-        return await getFollowingList(currentUser);
+        response = await getFollowingList(currentUser);
+        break;
       default:
-        return sendResponse(404, { error: 'Route not found' });
+        response = createErrorResponse(404, 'Route not found');
     }
+
+    // Attach CORS headers
+    response.headers = {
+      ...(response.headers || {}),
+      ...getCorsHeaders(origin)
+    };
+
+    return response;
   } catch (error) {
     console.error('User Handler Error:', error);
-    return sendResponse(500, { error: error.message });
+    const response = createErrorResponse(500, error.message);
+    response.headers = getCorsHeaders(origin);
+    return response;
   }
 };
 
@@ -55,11 +80,11 @@ const getCurrentUser = async (currentUser) => {
   try {
     const user = await dynamodb.get(process.env.USERS_TABLE, { userId: currentUser.userId });
     if (!user) {
-      return sendResponse(404, { error: 'User not found' });
+      return createErrorResponse(404, 'User not found');
     }
-    return sendResponse(200, user);
+    return createSuccessResponse(user);
   } catch (error) {
-    return sendResponse(500, { error: error.message });
+    return createErrorResponse(500, error.message);
   }
 };
 
@@ -73,7 +98,7 @@ const getProfile = async (userName) => {
     );
 
     if (users.length === 0) {
-      return sendResponse(404, { error: 'User not found' });
+      return createErrorResponse(404, 'User not found');
     }
 
     const user = users[0];
@@ -97,14 +122,14 @@ const getProfile = async (userName) => {
       })
     );
 
-    return sendResponse(200, {
+    return createSuccessResponse({
       ...user,
       posts,
       followers: followersData.filter(Boolean),
       following: followingData.filter(Boolean)
     });
   } catch (error) {
-    return sendResponse(500, { error: error.message });
+    return createErrorResponse(500, error.message);
   }
 };
 
@@ -139,9 +164,9 @@ const editProfile = async (currentUser, { name, userName, bio, profession, gende
       expressionAttributeNames
     );
 
-    return sendResponse(200, updatedUser);
+    return createSuccessResponse(updatedUser);
   } catch (error) {
-    return sendResponse(500, { error: error.message });
+    return createErrorResponse(500, error.message);
   }
 };
 
@@ -151,7 +176,7 @@ const followUser = async (currentUser, targetUserId) => {
     const targetUser = await dynamodb.get(process.env.USERS_TABLE, { userId: targetUserId });
 
     if (!targetUser) {
-      return sendResponse(404, { error: 'Target user not found' });
+      return createErrorResponse(404, 'Target user not found');
     }
 
     const isFollowing = currentUserData.following.includes(targetUserId);
@@ -198,9 +223,9 @@ const followUser = async (currentUser, targetUserId) => {
       await dynamodb.put(process.env.NOTIFICATIONS_TABLE, notification);
     }
 
-    return sendResponse(200, { message: isFollowing ? 'Unfollowed' : 'Followed' });
+    return createSuccessResponse({ message: isFollowing ? 'Unfollowed' : 'Followed' });
   } catch (error) {
-    return sendResponse(500, { error: error.message });
+    return createErrorResponse(500, error.message);
   }
 };
 
@@ -216,9 +241,9 @@ const getSuggestedUsers = async (currentUser) => {
       )
       .slice(0, 10);
 
-    return sendResponse(200, suggestedUsers);
+    return createSuccessResponse(suggestedUsers);
   } catch (error) {
-    return sendResponse(500, { error: error.message });
+    return createErrorResponse(500, error.message);
   }
 };
 
@@ -230,9 +255,9 @@ const searchUsers = async (keyword) => {
       user.name.toLowerCase().includes(keyword.toLowerCase())
     );
 
-    return sendResponse(200, filteredUsers);
+    return createSuccessResponse(filteredUsers);
   } catch (error) {
-    return sendResponse(500, { error: error.message });
+    return createErrorResponse(500, error.message);
   }
 };
 
@@ -246,8 +271,8 @@ const getFollowingList = async (currentUser) => {
       })
     );
 
-    return sendResponse(200, followingData.filter(Boolean));
+    return createSuccessResponse(followingData.filter(Boolean));
   } catch (error) {
-    return sendResponse(500, { error: error.message });
+    return createErrorResponse(500, error.message);
   }
 };

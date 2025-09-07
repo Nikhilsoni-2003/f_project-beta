@@ -1,0 +1,1593 @@
+# AWSTemplateFormatVersion: '2010-09-09'
+# Transform: AWS::Serverless-2016-10-31
+# Description: Serverless Social Media Application
+
+# Parameters:
+#   CognitoUserPoolId:
+#     Type: String
+#     Default: eu-north-1_RFZvLrDd9
+#     Description: Cognito User Pool ID
+#   CognitoClientId:
+#     Type: String
+#     Default: 1cvth0disa6uhcgflcsih54hfl
+#     Description: Cognito App Client ID
+#   S3BucketName:
+#     Type: String
+#     Default: serverless-social-media-storage-123
+#     Description: S3 bucket for media storage
+#   CloudFrontDomain:
+#     Type: String
+#     Default: dsvtq5o5a0ykh.cloudfront.net
+#     Description: CloudFront distribution domain
+#   Environment:
+#     Type: String
+#     Default: prod
+#     AllowedValues: [local, dev, prod]
+#     Description: Environment type
+
+# Conditions:
+#   IsLocal: !Equals [!Ref Environment, local]
+#   IsDev: !Equals [!Ref Environment, dev]
+
+# Globals:
+#   Function:
+#     Timeout: 30
+#     Runtime: nodejs18.x
+#     Environment:
+#       Variables:
+#         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+#         COGNITO_CLIENT_ID: !Ref CognitoClientId
+#         S3_BUCKET_NAME: !Ref S3BucketName
+#         CLOUDFRONT_DOMAIN: !Ref CloudFrontDomain
+#         USERS_TABLE: Users
+#         POSTS_TABLE: Posts
+#         LOOPS_TABLE: Loops
+#         STORIES_TABLE: Stories
+#         MESSAGES_TABLE: Messages
+#         CONVERSATIONS_TABLE: Conversations
+#         NOTIFICATIONS_TABLE: Notifications
+#         CONNECTIONS_TABLE: Connections
+
+# Resources:
+#   # Lambda Layer for Shared Code (dynamodb.js)
+#   SharedLayer:
+#     Type: AWS::Serverless::LayerVersion
+#     Properties:
+#       LayerName: shared-utils-layer
+#       Description: Shared utilities including dynamodb.js
+#       ContentUri: src/utils/
+#       CompatibleRuntimes:
+#         - nodejs18.x
+
+#   # API Gateway
+#   ApiGateway:
+#     Type: AWS::Serverless::Api
+#     Properties:
+#       StageName: !If [IsLocal, local, !If [IsDev, dev, prod]]
+#       Cors:
+#         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+#         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+#         AllowOrigin: !Sub "'*'"
+#         AllowCredentials: true
+#       Auth:
+#         DefaultAuthorizer: CognitoUserPoolAuthorizer
+#         Authorizers:
+#           CognitoUserPoolAuthorizer:
+#             UserPoolArn: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+
+#   # Auth Functions
+#   AuthFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/auth/index.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Events:
+#         SignUp:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/signup
+#             Method: post
+#             Auth:
+#               Authorizer: NONE
+#         SignIn:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/signin
+#             Method: post
+#             Auth:
+#               Authorizer: NONE
+#         SignOut:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/signout
+#             Method: get
+#             Auth:
+#               Authorizer: NONE
+#         ForgotPassword:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/forgot-password
+#             Method: post
+#             Auth:
+#               Authorizer: NONE
+#         ResetPassword:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/reset-password
+#             Method: post
+#             Auth:
+#               Authorizer: NONE
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+#             - Effect: Allow
+#               Action:
+#                 - cognito-idp:AdminCreateUser
+#                 - cognito-idp:AdminSetUserPassword
+#                 - cognito-idp:InitiateAuth
+#                 - cognito-idp:AdminGetUser
+#                 - cognito-idp:ForgotPassword
+#                 - cognito-idp:ConfirmForgotPassword
+#               Resource: !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}'
+
+#   AuthFunctionPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref AuthFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/api/auth/*'
+
+#   # User Functions
+#   UserFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/user/index.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Events:
+#         GetCurrentUser:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/current
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         GetProfile:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/getProfile/{userName}
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         EditProfile:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/editProfile
+#             Method: post
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         Follow:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/follow/{userId}
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         GetSuggested:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/suggested
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         Search:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/search
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         GetFollowing:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/followingList
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
+#             - Effect: Allow
+#               Action:
+#                 - s3:GetObject
+#                 - s3:PutObject
+#                 - s3:DeleteObject
+#               Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+
+#   UserFunctionPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref UserFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/user/*'
+
+#   # Post Functions
+#   PostFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/post/index.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Events:
+#         Upload:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/upload
+#             Method: post
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         GetAll:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/getAll
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         Like:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/like/{postId}
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         Comment:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/comment/{postId}
+#             Method: post
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         Saved:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/saved/{postId}
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
+#             - Effect: Allow
+#               Action:
+#                 - s3:GetObject
+#                 - s3:PutObject
+#                 - s3:DeleteObject
+#               Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+
+#   PostFunctionPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref PostFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/post/*'
+
+#   # Loop Functions
+#   LoopFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/loop/index.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Events:
+#         Upload:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/loop/upload
+#             Method: post
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         GetAll:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/loop/getAll
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         Like:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/loop/like/{loopId}
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         Comment:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/loop/comment/{loopId}
+#             Method: post
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
+#             - Effect: Allow
+#               Action:
+#                 - s3:GetObject
+#                 - s3:PutObject
+#                 - s3:DeleteObject
+#               Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+
+#   LoopFunctionPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref LoopFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/loop/*'
+
+#   # Story Functions
+#   StoryFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/story/index.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Events:
+#         Upload:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/story/upload
+#             Method: post
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         GetAll:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/story/getAll
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         GetByUserName:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/story/getByUserName/{userName}
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         View:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/story/view/{storyId}
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:DeleteItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+#             - Effect: Allow
+#               Action:
+#                 - s3:GetObject
+#                 - s3:PutObject
+#                 - s3:DeleteObject
+#               Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+
+#   StoryFunctionPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref StoryFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/story/*'
+
+#   # Message Functions
+#   MessageFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/message/index.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Events:
+#         Send:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/message/send/{userId}
+#             Method: post
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         GetAll:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/message/getAll/{userId}
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         GetPrevChats:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/message/prevChats
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Messages'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Messages/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Conversations'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Conversations/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+
+#   MessageFunctionPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref MessageFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/message'
+#             # SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/message/*'
+
+#   # Notification Functions
+#   NotificationFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/notification/index.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Events:
+#         GetAll:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/getAllNotifications
+#             Method: get
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#         MarkAsRead:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/markAsRead
+#             Method: post
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops'
+#                 - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*'
+
+#   NotificationFunctionPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref NotificationFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/user/*'
+
+#   # Media Functions
+#   MediaFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/media/index.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Events:
+#         GetPresignedUrl:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/media/presigned-url
+#             Method: post
+#             Auth:
+#               Authorizer: CognitoUserPoolAuthorizer
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - s3:GetObject
+#                 - s3:PutObject
+#                 - s3:DeleteObject
+#               Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+
+#   MediaFunctionPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref MediaFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/api/media/*'
+
+#   # WebSocket API
+#   WebSocketApi:
+#     Type: AWS::ApiGatewayV2::Api
+#     Properties:
+#       Name: SocialMediaWebSocket
+#       ProtocolType: WEBSOCKET
+#       RouteSelectionExpression: "$request.body.action"
+
+#   # WebSocket Functions
+#   WebSocketConnectFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/websocket/connect.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Environment:
+#         Variables:
+#           WEBSOCKET_API_ID: !Ref WebSocketApi
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections'
+#             - Effect: Allow
+#               Action: execute-api:ManageConnections
+#               Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*'
+
+#   WebSocketDisconnectFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/websocket/disconnect.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Environment:
+#         Variables:
+#           WEBSOCKET_API_ID: !Ref WebSocketApi
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:DeleteItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections'
+#             - Effect: Allow
+#               Action: execute-api:ManageConnections
+#               Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*'
+
+#   WebSocketMessageFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/websocket/message.handler
+#       Layers:
+#         - !Ref SharedLayer
+#       Environment:
+#         Variables:
+#           WEBSOCKET_API_ID: !Ref WebSocketApi
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:DeleteItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections'
+#             - Effect: Allow
+#               Action: execute-api:ManageConnections
+#               Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*'
+
+#   # WebSocket Routes
+#   ConnectRoute:
+#     Type: AWS::ApiGatewayV2::Route
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       RouteKey: $connect
+#       AuthorizationType: NONE
+#       Target: !Sub 'integrations/${ConnectIntegration}'
+
+#   DisconnectRoute:
+#     Type: AWS::ApiGatewayV2::Route
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       RouteKey: $disconnect
+#       AuthorizationType: NONE
+#       Target: !Sub 'integrations/${DisconnectIntegration}'
+
+#   MessageRoute:
+#     Type: AWS::ApiGatewayV2::Route
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       RouteKey: message
+#       AuthorizationType: NONE
+#       Target: !Sub 'integrations/${MessageIntegration}'
+
+#   # WebSocket Integrations
+#   ConnectIntegration:
+#     Type: AWS::ApiGatewayV2::Integration
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       IntegrationType: AWS_PROXY
+#       IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketConnectFunction.Arn}/invocations'
+
+#   DisconnectIntegration:
+#     Type: AWS::ApiGatewayV2::Integration
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       IntegrationType: AWS_PROXY
+#       IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketDisconnectFunction.Arn}/invocations'
+
+#   MessageIntegration:
+#     Type: AWS::ApiGatewayV2::Integration
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       IntegrationType: AWS_PROXY
+#       IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketMessageFunction.Arn}/invocations'
+
+#   # WebSocket Deployment
+#   WebSocketDeployment:
+#     Type: AWS::ApiGatewayV2::Deployment
+#     DependsOn:
+#       - ConnectRoute
+#       - DisconnectRoute
+#       - MessageRoute
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+
+#   WebSocketStage:
+#     Type: AWS::ApiGatewayV2::Stage
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       DeploymentId: !Ref WebSocketDeployment
+#       StageName: prod
+
+#   # Lambda Permissions for WebSocket
+#   WebSocketConnectPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref WebSocketConnectFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
+
+#   WebSocketDisconnectPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref WebSocketDisconnectFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
+
+#   WebSocketMessagePermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref WebSocketMessageFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
+
+# Outputs:
+#   ApiGatewayUrl:
+#     Description: API Gateway endpoint URL
+#     Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${ApiGateway.Stage}'
+#     Export:
+#       Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
+#   WebSocketUrl:
+#     Description: WebSocket API endpoint URL
+#     Value: !Sub 'wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+#     Export:
+#       Name: !Sub '${AWS::StackName}-WebSocketUrl'
+#   WebSocketApiId:
+#     Description: WebSocket API ID
+#     Value: !Ref WebSocketApi
+#     Export:
+#       Name: !Sub '${AWS::StackName}-WebSocketApiId'
+
+# Template - 2:
+
+# AWSTemplateFormatVersion: '2010-09-09'
+# Transform: AWS::Serverless-2016-10-31
+# Description: Serverless Social Media Application
+
+# Parameters:
+#   CognitoUserPoolId:
+#     Type: String
+#     Default: eu-north-1_RFZvLrDd9
+#     Description: Cognito User Pool ID
+
+#   CognitoClientId:
+#     Type: String
+#     Default: 1cvth0disa6uhcgflcsih54hfl
+#     Description: Cognito App Client ID
+
+#   S3BucketName:
+#     Type: String
+#     Default: serverless-social-media-storage-123
+#     Description: S3 bucket for media storage
+
+#   CloudFrontDomain:
+#     Type: String
+#     Default: dsvtq5o5a0ykh.cloudfront.net
+#     Description: CloudFront distribution domain
+
+#   Environment:
+#     Type: String
+#     Default: prod
+#     AllowedValues:
+#       - local
+#       - dev
+#       - prod
+#     Description: Environment type
+
+# Conditions:
+#   IsLocal: !Equals
+#     - !Ref Environment
+#     - local
+#   IsDev: !Equals
+#     - !Ref Environment
+#     - dev
+
+# Globals:
+#   Function:
+#     Timeout: 30
+#     Runtime: nodejs18.x
+#     Environment:
+#       Variables:
+#         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+#         COGNITO_CLIENT_ID: !Ref CognitoClientId
+#         S3_BUCKET_NAME: !Ref S3BucketName
+#         CLOUDFRONT_DOMAIN: !Ref CloudFrontDomain
+#         USERS_TABLE: Users
+#         POSTS_TABLE: Posts
+#         LOOPS_TABLE: Loops
+#         STORIES_TABLE: Stories
+#         MESSAGES_TABLE: Messages
+#         CONVERSATIONS_TABLE: Conversations
+#         NOTIFICATIONS_TABLE: Notifications
+#         CONNECTIONS_TABLE: Connections
+
+# Resources:
+#   # API Gateway with proper CORS
+#   ApiGateway:
+#     Type: AWS::Serverless::Api
+#     Properties:
+#       StageName: !If
+#         - IsLocal
+#         - local
+#         - !If
+#           - IsDev
+#           - dev
+#           - prod
+#       Cors:
+#         AllowMethods:
+#           - GET
+#           - POST
+#           - PUT
+#           - DELETE
+#           - OPTIONS
+#         AllowHeaders:
+#           - Content-Type
+#           - Authorization
+#           - X-Amz-Date
+#           - X-Api-Key
+#           - X-Amz-Security-Token
+#         AllowOrigin:
+#           - http://localhost:5173
+#           - !Sub https://${CloudFrontDomain}
+#         AllowCredentials: true
+
+#   # Auth Function
+#   AuthFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/auth/index.handler
+#       Events:
+#         SignUp:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/signup
+#             Method: post
+#             Auth:
+#               Authorizer: NONE
+#         SignIn:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/signin
+#             Method: post
+#             Auth:
+#               Authorizer: NONE
+#         SignOut:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/signout
+#             Method: get
+#             Auth:
+#               Authorizer: NONE
+#         ForgotPassword:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/forgot-password
+#             Method: post
+#             Auth:
+#               Authorizer: NONE
+#         ResetPassword:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/reset-password
+#             Method: post
+#             Auth:
+#               Authorizer: NONE
+#         AuthOptions:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/auth/{proxy+}
+#             Method: options
+#             Auth:
+#               Authorizer: NONE
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+#             - Effect: Allow
+#               Action:
+#                 - cognito-idp:AdminCreateUser
+#                 - cognito-idp:AdminSetUserPassword
+#                 - cognito-idp:InitiateAuth
+#                 - cognito-idp:RespondToAuthChallenge
+#                 - cognito-idp:AdminGetUser
+#                 - cognito-idp:ForgotPassword
+#                 - cognito-idp:ConfirmForgotPassword
+#               Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+
+#   # User Function
+#   UserFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/user/index.handler
+#       Events:
+#         GetCurrentUser:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/current
+#             Method: get
+#         GetProfile:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/getProfile/{userName}
+#             Method: get
+#         EditProfile:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/editProfile
+#             Method: post
+#         Follow:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/follow/{userId}
+#             Method: get
+#         GetSuggested:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/suggested
+#             Method: get
+#         Search:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/search
+#             Method: get
+#         GetFollowing:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/followingList
+#             Method: get
+#         UserOptions:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/{proxy+}
+#             Method: options
+#             Auth:
+#               Authorizer: NONE
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*
+#             - Effect: Allow
+#               Action:
+#                 - s3:GetObject
+#                 - s3:PutObject
+#                 - s3:DeleteObject
+#               Resource: !Sub arn:aws:s3:::${S3BucketName}/*
+
+#   # Post Function
+#   PostFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/post/index.handler
+#       Events:
+#         Upload:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/upload
+#             Method: post
+#         GetAll:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/getAll
+#             Method: get
+#         Like:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/like/{postId}
+#             Method: get
+#         Comment:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/comment/{postId}
+#             Method: post
+#         Saved:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/saved/{postId}
+#             Method: get
+#         PostOptions:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/post/{proxy+}
+#             Method: options
+#             Auth:
+#               Authorizer: NONE
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*
+#             - Effect: Allow
+#               Action:
+#                 - s3:GetObject
+#                 - s3:PutObject
+#                 - s3:DeleteObject
+#               Resource: !Sub arn:aws:s3:::${S3BucketName}/*
+
+#   # Loop Function
+#   LoopFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/loop/index.handler
+#       Events:
+#         Upload:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/loop/upload
+#             Method: post
+#         GetAll:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/loop/getAll
+#             Method: get
+#         Like:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/loop/like/{loopId}
+#             Method: get
+#         Comment:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/loop/comment/{loopId}
+#             Method: post
+#         LoopOptions:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/loop/{proxy+}
+#             Method: options
+#             Auth:
+#               Authorizer: NONE
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*
+#             - Effect: Allow
+#               Action:
+#                 - s3:GetObject
+#                 - s3:PutObject
+#                 - s3:DeleteObject
+#               Resource: !Sub arn:aws:s3:::${S3BucketName}/*
+
+#   # Story Function
+#   StoryFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/story/index.handler
+#       Events:
+#         Upload:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/story/upload
+#             Method: post
+#         GetAll:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/story/getAll
+#             Method: get
+#         GetByUserName:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/story/getByUserName/{userName}
+#             Method: get
+#         View:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/story/view/{storyId}
+#             Method: get
+#         StoryOptions:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/story/{proxy+}
+#             Method: options
+#             Auth:
+#               Authorizer: NONE
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:DeleteItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+#             - Effect: Allow
+#               Action:
+#                 - s3:GetObject
+#                 - s3:PutObject
+#                 - s3:DeleteObject
+#               Resource: !Sub arn:aws:s3:::${S3BucketName}/*
+
+#   # Message Function
+#   MessageFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/message/index.handler
+#       Events:
+#         Send:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/message/send/{userId}
+#             Method: post
+#         GetAll:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/message/getAll/{userId}
+#             Method: get
+#         GetPrevChats:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/message/prevChats
+#             Method: get
+#         MessageOptions:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/message/{proxy+}
+#             Method: options
+#             Auth:
+#               Authorizer: NONE
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Messages
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Messages/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Conversations
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Conversations/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+
+#   # Notification Function
+#   NotificationFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/notification/index.handler
+#       Events:
+#         GetAll:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/getAllNotifications
+#             Method: get
+#         MarkAsRead:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/markAsRead
+#             Method: post
+#         NotificationOptions:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/user/{proxy+}
+#             Method: options
+#             Auth:
+#               Authorizer: NONE
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource:
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops
+#                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*
+
+#   # Media Function
+#   MediaFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/media/index.handler
+#       Events:
+#         GetPresignedUrl:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/media/presigned-url
+#             Method: post
+#         MediaOptions:
+#           Type: Api
+#           Properties:
+#             RestApiId: !Ref ApiGateway
+#             Path: /api/media/{proxy+}
+#             Method: options
+#             Auth:
+#               Authorizer: NONE
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - s3:GetObject
+#                 - s3:PutObject
+#                 - s3:DeleteObject
+#               Resource: !Sub arn:aws:s3:::${S3BucketName}/*
+
+#   # WebSocket API
+#   WebSocketApi:
+#     Type: AWS::ApiGatewayV2::Api
+#     Properties:
+#       Name: SocialMediaWebSocket
+#       ProtocolType: WEBSOCKET
+#       RouteSelectionExpression: $request.body.action
+
+#   WebSocketConnectFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/websocket/connect.handler
+#       Environment:
+#         Variables:
+#           WEBSOCKET_API_ID: !Ref WebSocketApi
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
+#             - Effect: Allow
+#               Action: execute-api:ManageConnections
+#               Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
+
+#   WebSocketDisconnectFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/websocket/disconnect.handler
+#       Environment:
+#         Variables:
+#           WEBSOCKET_API_ID: !Ref WebSocketApi
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:DeleteItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
+#             - Effect: Allow
+#               Action: execute-api:ManageConnections
+#               Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
+
+#   WebSocketMessageFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: functions/websocket/message.handler
+#       Environment:
+#         Variables:
+#           WEBSOCKET_API_ID: !Ref WebSocketApi
+#       Policies:
+#         - Version: '2012-10-17'
+#           Statement:
+#             - Effect: Allow
+#               Action:
+#                 - dynamodb:GetItem
+#                 - dynamodb:PutItem
+#                 - dynamodb:UpdateItem
+#                 - dynamodb:DeleteItem
+#                 - dynamodb:Query
+#                 - dynamodb:Scan
+#               Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
+#             - Effect: Allow
+#               Action: execute-api:ManageConnections
+#               Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
+
+#   # WebSocket Routes
+#   ConnectRoute:
+#     Type: AWS::ApiGatewayV2::Route
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       RouteKey: $connect
+#       AuthorizationType: NONE
+#       Target: !Sub integrations/${ConnectIntegration}
+
+#   DisconnectRoute:
+#     Type: AWS::ApiGatewayV2::Route
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       RouteKey: $disconnect
+#       AuthorizationType: NONE
+#       Target: !Sub integrations/${DisconnectIntegration}
+
+#   MessageRoute:
+#     Type: AWS::ApiGatewayV2::Route
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       RouteKey: message
+#       AuthorizationType: NONE
+#       Target: !Sub integrations/${MessageIntegration}
+
+#   # WebSocket Integrations
+#   ConnectIntegration:
+#     Type: AWS::ApiGatewayV2::Integration
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       IntegrationType: AWS_PROXY
+#       IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketConnectFunction.Arn}/invocations
+
+#   DisconnectIntegration:
+#     Type: AWS::ApiGatewayV2::Integration
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       IntegrationType: AWS_PROXY
+#       IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketDisconnectFunction.Arn}/invocations
+
+#   MessageIntegration:
+#     Type: AWS::ApiGatewayV2::Integration
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       IntegrationType: AWS_PROXY
+#       IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketMessageFunction.Arn}/invocations
+
+#   # WebSocket Deployment
+#   WebSocketDeployment:
+#     Type: AWS::ApiGatewayV2::Deployment
+#     DependsOn:
+#       - ConnectRoute
+#       - DisconnectRoute
+#       - MessageRoute
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+
+#   WebSocketStage:
+#     Type: AWS::ApiGatewayV2::Stage
+#     Properties:
+#       ApiId: !Ref WebSocketApi
+#       DeploymentId: !Ref WebSocketDeployment
+#       StageName: prod
+
+#   # Lambda Permissions for WebSocket
+#   WebSocketConnectPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref WebSocketConnectFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*
+
+#   WebSocketDisconnectPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref WebSocketDisconnectFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*
+
+#   WebSocketMessagePermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       Action: lambda:InvokeFunction
+#       FunctionName: !Ref WebSocketMessageFunction
+#       Principal: apigateway.amazonaws.com
+#       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*
+
+# Outputs:
+#   ApiGatewayUrl:
+#     Description: API Gateway endpoint URL
+#     Value: !Sub
+#       - https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+#       - ApiGateway: !Ref ApiGateway
+#         Stage: !If
+#           - IsLocal
+#           - local
+#           - !If
+#             - IsDev
+#             - dev
+#             - prod
+#     Export:
+#       Name: !Sub ${AWS::StackName}-ApiGatewayUrl
+
+#   WebSocketUrl:
+#     Description: WebSocket API endpoint URL
+#     Value: !Sub wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+#     Export:
+#       Name: !Sub ${AWS::StackName}-WebSocketUrl
+
+#   WebSocketApiId:
+#     Description: WebSocket API ID
+#     Value: !Ref WebSocketApi
+#     Export:
+#       Name: !Sub ${AWS::StackName}-WebSocketApiId
+
+

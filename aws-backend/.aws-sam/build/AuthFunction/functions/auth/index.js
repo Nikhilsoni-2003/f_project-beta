@@ -153,30 +153,31 @@ const dynamodb = require('../../utils/dynamodb');
 const cognito = require('../../utils/cognito');
 const { createSuccessResponse, createErrorResponse } = require('../../utils/response');
 
-exports.handler = async (event) => {
-  const { httpMethod, path, body, headers } = event;
-  const parsedBody = body ? JSON.parse(body) : {};
+// ✅ Centralized CORS response helper
+const sendResponse = (statusCode, body) => {
+  return {
+    statusCode,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Credentials': 'true'
+    },
+    body: JSON.stringify(body)
+  };
+};
 
-  // Detect origin (fallback to localhost if not provided)
-  const origin = headers?.origin || 'http://localhost:5173';
+exports.handler = async (event) => {
+  const { httpMethod, path, body } = event;
+  const parsedBody = body ? JSON.parse(body) : {};
 
   // Handle OPTIONS (preflight)
   if (httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Access-Control-Allow-Credentials': 'true'
-      },
-      body: JSON.stringify({ message: 'CORS preflight OK' })
-    };
+    return sendResponse(200, { message: 'CORS preflight OK' });
   }
 
   try {
     let response;
-
     switch (true) {
       case httpMethod === 'POST' && path === '/api/auth/signup':
         response = await signUp(parsedBody);
@@ -197,21 +198,15 @@ exports.handler = async (event) => {
         response = createErrorResponse(404, 'Route not found');
     }
 
-    // Add CORS headers to all responses
-    response.headers = {
-      ...(response.headers || {}),
-      'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Credentials': 'true'
-    };
-
-    return response;
+    // Wrap response with CORS
+    return sendResponse(response.statusCode || 200, JSON.parse(response.body));
   } catch (error) {
     console.error('Auth Handler Error:', error);
-    return createErrorResponse(500, error.message);
+    return sendResponse(500, { error: error.message });
   }
 };
+
+// -------------------- Auth Functions --------------------
 
 const signUp = async ({ name, userName, email, password }) => {
   try {
@@ -221,10 +216,7 @@ const signUp = async ({ name, userName, email, password }) => {
       { ':email': email },
       'email-index'
     );
-
-    if (existingUserByEmail.length > 0) {
-      return createErrorResponse(400, 'User with this email already exists');
-    }
+    if (existingUserByEmail.length > 0) return createErrorResponse(400, 'User with this email already exists');
 
     const existingUserByUserName = await dynamodb.query(
       process.env.USERS_TABLE,
@@ -232,10 +224,7 @@ const signUp = async ({ name, userName, email, password }) => {
       { ':userName': userName },
       'userName-index'
     );
-
-    if (existingUserByUserName.length > 0) {
-      return createErrorResponse(400, 'Username already taken');
-    }
+    if (existingUserByUserName.length > 0) return createErrorResponse(400, 'Username already taken');
 
     await cognito.signUp(email, password, userName, name);
     const tokens = await cognito.signIn(email, password);
@@ -275,10 +264,7 @@ const signIn = async ({ userName, password }) => {
       { ':userName': userName },
       'userName-index'
     );
-
-    if (users.length === 0) {
-      return createErrorResponse(400, 'User not found');
-    }
+    if (users.length === 0) return createErrorResponse(400, 'User not found');
 
     const user = users[0];
     const tokens = await cognito.signIn(user.email, password);
@@ -290,9 +276,7 @@ const signIn = async ({ userName, password }) => {
   }
 };
 
-const signOut = async () => {
-  return createSuccessResponse({ message: 'Signed out successfully' });
-};
+const signOut = async () => createSuccessResponse({ message: 'Signed out successfully' });
 
 const forgotPassword = async ({ email }) => {
   try {

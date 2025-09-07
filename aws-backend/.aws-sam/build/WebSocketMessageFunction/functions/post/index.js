@@ -119,9 +119,7 @@ const uploadPost = async (currentUser, { caption, mediaType, mediaKey }) => {
 
 const getAllPosts = async (currentUser) => {
   try {
-    const user = await dynamodb.get(process.env.USERS_TABLE, { userId: currentUser.userId });
     const allPosts = await dynamodb.scan(process.env.POSTS_TABLE);
-
     const sortedPosts = allPosts.sort((a, b) => b.createdAt - a.createdAt);
 
     const postsWithAuthors = await Promise.all(
@@ -148,9 +146,7 @@ const getAllPosts = async (currentUser) => {
 const likePost = async (currentUser, postId) => {
   try {
     const post = await dynamodb.get(process.env.POSTS_TABLE, { postId });
-    if (!post) {
-      return createErrorResponse(404, 'Post not found');
-    }
+    if (!post) return createErrorResponse(404, 'Post not found');
 
     const isLiked = post.likes.includes(currentUser.userId);
     const updatedLikes = isLiked 
@@ -164,7 +160,7 @@ const likePost = async (currentUser, postId) => {
       { ':likes': updatedLikes }
     );
 
-    // Create notification if liked
+    // Notification if liked by another user
     if (!isLiked && post.authorId !== currentUser.userId) {
       const currentUserData = await dynamodb.get(process.env.USERS_TABLE, { userId: currentUser.userId });
       const notification = {
@@ -172,7 +168,7 @@ const likePost = async (currentUser, postId) => {
         receiverId: post.authorId,
         senderId: currentUser.userId,
         type: 'like',
-        postId: postId,
+        postId,
         message: `${currentUserData.userName} liked your post`,
         isRead: false,
         createdAt: Date.now()
@@ -200,9 +196,7 @@ const likePost = async (currentUser, postId) => {
 const commentPost = async (currentUser, postId, { message }) => {
   try {
     const post = await dynamodb.get(process.env.POSTS_TABLE, { postId });
-    if (!post) {
-      return createErrorResponse(404, 'Post not found');
-    }
+    if (!post) return createErrorResponse(404, 'Post not found');
 
     const currentUserData = await dynamodb.get(process.env.USERS_TABLE, { userId: currentUser.userId });
     
@@ -227,18 +221,18 @@ const commentPost = async (currentUser, postId, { message }) => {
       { ':comments': updatedComments }
     );
 
+    // Notification if commented by another user
     if (post.authorId !== currentUser.userId) {
       const notification = {
         notificationId: uuidv4(),
         receiverId: post.authorId,
         senderId: currentUser.userId,
         type: 'comment',
-        postId: postId,
+        postId,
         message: `${currentUserData.userName} commented on your post`,
         isRead: false,
         createdAt: Date.now()
       };
-
       await dynamodb.put(process.env.NOTIFICATIONS_TABLE, notification);
     }
 

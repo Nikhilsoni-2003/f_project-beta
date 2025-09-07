@@ -22,7 +22,7 @@ exports.handler = async (event) => {
   const parsedBody = body ? JSON.parse(body) : {};
   const origin = headers?.origin || headers?.Origin || '*';
 
-  // Handle OPTIONS (preflight)
+  // Handle OPTIONS preflight
   if (httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
@@ -139,19 +139,31 @@ const getAllMessages = async (currentUser, otherUserId) => {
 
 const getPrevChats = async (currentUser) => {
   try {
-    const conversations1 = await dynamodb.query(
+    // Check if tables exist and handle gracefully
+    let conversations1 = [];
+    let conversations2 = [];
+    
+    try {
+      conversations1 = await dynamodb.query(
       process.env.CONVERSATIONS_TABLE,
       'participant1 = :participant1',
       { ':participant1': currentUser.userId },
       'participant1-index'
     );
+    } catch (error) {
+      console.log('participant1-index query failed:', error);
+    }
 
-    const conversations2 = await dynamodb.query(
+    try {
+      conversations2 = await dynamodb.query(
       process.env.CONVERSATIONS_TABLE,
       'participant2 = :participant2',
       { ':participant2': currentUser.userId },
       'participant2-index'
     );
+    } catch (error) {
+      console.log('participant2-index query failed:', error);
+    }
 
     const allConversations = [...conversations1, ...conversations2];
 
@@ -171,6 +183,7 @@ const getPrevChats = async (currentUser) => {
 
     return createSuccessResponse(chatUsers.filter(Boolean));
   } catch (error) {
+    console.error('getPrevChats error:', error);
     return createErrorResponse(500, error.message);
   }
 };
