@@ -4,44 +4,75 @@ const s3 = require('../../utils/s3');
 const { extractUserFromToken } = require('../../utils/auth');
 const { createSuccessResponse, createErrorResponse } = require('../../utils/response');
 
-exports.handler = async (event) => {
-  const { httpMethod, path, pathParameters, body } = event;
-  const parsedBody = body ? JSON.parse(body) : {};
+// -------------------- CORS Setup --------------------
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://dsvtq5o5a0ykh.cloudfront.net'
+];
 
+const getCorsHeaders = (origin) => {
+  return {
+    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+  };
+};
+// -----------------------------------------------------
+
+exports.handler = async (event) => {
+  const { httpMethod, path, pathParameters, body, headers } = event;
+  const parsedBody = body ? JSON.parse(body) : {};
+  const origin = headers?.origin || headers?.Origin || '*';
+
+  // Handle CORS preflight
   if (httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-      },
+      headers: getCorsHeaders(origin),
       body: JSON.stringify({ message: 'CORS preflight OK' })
     };
   }
 
   try {
     const currentUser = await extractUserFromToken(event);
+    let response;
 
     switch (true) {
       case httpMethod === 'POST' && path === '/api/post/upload':
-        return await uploadPost(currentUser, parsedBody);
+        response = await uploadPost(currentUser, parsedBody);
+        break;
       case httpMethod === 'GET' && path === '/api/post/getAll':
-        return await getAllPosts(currentUser);
+        response = await getAllPosts(currentUser);
+        break;
       case httpMethod === 'GET' && path.includes('/api/post/like/'):
-        return await likePost(currentUser, pathParameters.postId);
+        response = await likePost(currentUser, pathParameters.postId);
+        break;
       case httpMethod === 'POST' && path.includes('/api/post/comment/'):
-        return await commentPost(currentUser, pathParameters.postId, parsedBody);
+        response = await commentPost(currentUser, pathParameters.postId, parsedBody);
+        break;
       case httpMethod === 'GET' && path.includes('/api/post/saved/'):
-        return await savePost(currentUser, pathParameters.postId);
+        response = await savePost(currentUser, pathParameters.postId);
+        break;
       default:
-        return createErrorResponse(404, 'Route not found');
+        response = createErrorResponse(404, 'Route not found');
     }
+
+    // Attach CORS headers to all responses
+    response.headers = {
+      ...(response.headers || {}),
+      ...getCorsHeaders(origin)
+    };
+
+    return response;
   } catch (error) {
     console.error('Post Handler Error:', error);
-    return createErrorResponse(500, error.message);
+    const response = createErrorResponse(500, error.message);
+    response.headers = getCorsHeaders(origin);
+    return response;
   }
 };
+
+// -------------------- Functions --------------------
 
 const uploadPost = async (currentUser, { caption, mediaType, mediaKey }) => {
   try {
@@ -88,13 +119,9 @@ const uploadPost = async (currentUser, { caption, mediaType, mediaKey }) => {
 
 const getAllPosts = async (currentUser) => {
   try {
-    const user = await dynamodb.get(process.env.USERS_TABLE, { userId: currentUser.userId });
     const allPosts = await dynamodb.scan(process.env.POSTS_TABLE);
-
-    // Sort by creation date (newest first)
     const sortedPosts = allPosts.sort((a, b) => b.createdAt - a.createdAt);
 
-    // Populate author details
     const postsWithAuthors = await Promise.all(
       sortedPosts.map(async (post) => {
         const author = await dynamodb.get(process.env.USERS_TABLE, { userId: post.authorId });
@@ -119,9 +146,7 @@ const getAllPosts = async (currentUser) => {
 const likePost = async (currentUser, postId) => {
   try {
     const post = await dynamodb.get(process.env.POSTS_TABLE, { postId });
-    if (!post) {
-      return createErrorResponse(404, 'Post not found');
-    }
+    if (!post) return createErrorResponse(404, 'Post not found');
 
     const isLiked = post.likes.includes(currentUser.userId);
     const updatedLikes = isLiked 
@@ -135,7 +160,7 @@ const likePost = async (currentUser, postId) => {
       { ':likes': updatedLikes }
     );
 
-    // Create notification if liked
+    // Notification if liked by another user
     if (!isLiked && post.authorId !== currentUser.userId) {
       const currentUserData = await dynamodb.get(process.env.USERS_TABLE, { userId: currentUser.userId });
       const notification = {
@@ -143,7 +168,7 @@ const likePost = async (currentUser, postId) => {
         receiverId: post.authorId,
         senderId: currentUser.userId,
         type: 'like',
-        postId: postId,
+        postId,
         message: `${currentUserData.userName} liked your post`,
         isRead: false,
         createdAt: Date.now()
@@ -152,7 +177,6 @@ const likePost = async (currentUser, postId) => {
       await dynamodb.put(process.env.NOTIFICATIONS_TABLE, notification);
     }
 
-    // Get author details for response
     const author = await dynamodb.get(process.env.USERS_TABLE, { userId: post.authorId });
     
     return createSuccessResponse({
@@ -172,9 +196,7 @@ const likePost = async (currentUser, postId) => {
 const commentPost = async (currentUser, postId, { message }) => {
   try {
     const post = await dynamodb.get(process.env.POSTS_TABLE, { postId });
-    if (!post) {
-      return createErrorResponse(404, 'Post not found');
-    }
+    if (!post) return createErrorResponse(404, 'Post not found');
 
     const currentUserData = await dynamodb.get(process.env.USERS_TABLE, { userId: currentUser.userId });
     
@@ -199,23 +221,21 @@ const commentPost = async (currentUser, postId, { message }) => {
       { ':comments': updatedComments }
     );
 
-    // Create notification
+    // Notification if commented by another user
     if (post.authorId !== currentUser.userId) {
       const notification = {
         notificationId: uuidv4(),
         receiverId: post.authorId,
         senderId: currentUser.userId,
         type: 'comment',
-        postId: postId,
+        postId,
         message: `${currentUserData.userName} commented on your post`,
         isRead: false,
         createdAt: Date.now()
       };
-
       await dynamodb.put(process.env.NOTIFICATIONS_TABLE, notification);
     }
 
-    // Get author details for response
     const author = await dynamodb.get(process.env.USERS_TABLE, { userId: post.authorId });
     
     return createSuccessResponse({

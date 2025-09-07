@@ -8,7 +8,7 @@ Parameters:
     Description: Cognito User Pool ID
   CognitoClientId:
     Type: String
-    Default: 7p0e3uioc8mtq69m4qq12540mn
+    Default: 1cvth0disa6uhcgflcsih54hfl
     Description: Cognito App Client ID
   S3BucketName:
     Type: String
@@ -80,9 +80,8 @@ Resources:
       Cors:
         AllowMethods: '''GET,POST,PUT,DELETE,OPTIONS'''
         AllowHeaders: '''Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'''
-        AllowOrigin:
-          Fn::Sub: '''https://${CloudFrontDomain}'''
-        AllowCredentials: true
+        AllowOrigin: '''*'''
+        AllowCredentials: false
       Auth:
         DefaultAuthorizer: CognitoUserPoolAuthorizer
         Authorizers:
@@ -93,7 +92,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: AuthFunction
-      Handler: index.handler
+      Handler: functions/auth/index.handler
       Layers:
       - Ref: SharedLayer
       Events:
@@ -160,6 +159,7 @@ Resources:
           - cognito-idp:AdminCreateUser
           - cognito-idp:AdminSetUserPassword
           - cognito-idp:InitiateAuth
+          - cognito-idp:RespondToAuthChallenge
           - cognito-idp:AdminGetUser
           - cognito-idp:ForgotPassword
           - cognito-idp:ConfirmForgotPassword
@@ -180,7 +180,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: UserFunction
-      Handler: index.handler
+      Handler: functions/user/index.handler
       Layers:
       - Ref: SharedLayer
       Events:
@@ -286,7 +286,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: PostFunction
-      Handler: index.handler
+      Handler: functions/post/index.handler
       Layers:
       - Ref: SharedLayer
       Events:
@@ -374,7 +374,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: LoopFunction
-      Handler: index.handler
+      Handler: functions/loop/index.handler
       Layers:
       - Ref: SharedLayer
       Events:
@@ -453,7 +453,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: StoryFunction
-      Handler: index.handler
+      Handler: functions/story/index.handler
       Layers:
       - Ref: SharedLayer
       Events:
@@ -531,7 +531,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: MessageFunction
-      Handler: index.handler
+      Handler: functions/message/index.handler
       Layers:
       - Ref: SharedLayer
       Events:
@@ -594,7 +594,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: NotificationFunction
-      Handler: index.handler
+      Handler: functions/notification/index.handler
       Layers:
       - Ref: SharedLayer
       Events:
@@ -650,7 +650,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: MediaFunction
-      Handler: index.handler
+      Handler: functions/media/index.handler
       Layers:
       - Ref: SharedLayer
       Events:
@@ -694,7 +694,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: WebSocketConnectFunction
-      Handler: connect.handler
+      Handler: functions/websocket/connect.handler
       Layers:
       - Ref: SharedLayer
       Environment:
@@ -723,7 +723,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: WebSocketDisconnectFunction
-      Handler: disconnect.handler
+      Handler: functions/websocket/disconnect.handler
       Layers:
       - Ref: SharedLayer
       Environment:
@@ -753,7 +753,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: WebSocketMessageFunction
-      Handler: message.handler
+      Handler: functions/websocket/message.handler
       Layers:
       - Ref: SharedLayer
       Environment:
@@ -878,7 +878,18 @@ Outputs:
   ApiGatewayUrl:
     Description: API Gateway endpoint URL
     Value:
-      Fn::Sub: https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${ApiGateway.Stage}
+      Fn::Sub:
+      - https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+      - ApiGateway:
+          Ref: ApiGateway
+        Stage:
+          Fn::If:
+          - IsLocal
+          - local
+          - Fn::If:
+            - IsDev
+            - dev
+            - prod
     Export:
       Name:
         Fn::Sub: ${AWS::StackName}-ApiGatewayUrl

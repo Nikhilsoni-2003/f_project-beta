@@ -3,20 +3,26 @@ const dynamodb = require('../../utils/dynamodb');
 const { extractUserFromToken } = require('../../utils/auth');
 const { createSuccessResponse, createErrorResponse } = require('../../utils/response');
 
+// ✅ Common response with CORS
+const sendResponse = (statusCode, body) => {
+  return {
+    statusCode,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    },
+    body: JSON.stringify(body),
+  };
+};
+
 exports.handler = async (event) => {
   const { httpMethod, path, pathParameters, body } = event;
   const parsedBody = body ? JSON.parse(body) : {};
 
+  // ✅ Handle CORS preflight
   if (httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-      },
-      body: JSON.stringify({ message: 'CORS preflight OK' })
-    };
+    return sendResponse(200, { message: 'CORS preflight OK' });
   }
 
   try {
@@ -32,11 +38,11 @@ exports.handler = async (event) => {
       case httpMethod === 'GET' && path.includes('/api/story/view/'):
         return await viewStory(currentUser, pathParameters.storyId);
       default:
-        return createErrorResponse(404, 'Route not found');
+        return sendResponse(404, { error: 'Route not found' });
     }
   } catch (error) {
     console.error('Story Handler Error:', error);
-    return createErrorResponse(500, error.message);
+    return sendResponse(500, { error: error.message });
   }
 };
 
@@ -44,16 +50,15 @@ const uploadStory = async (currentUser, { mediaType, mediaKey }) => {
   try {
     const storyId = uuidv4();
     const mediaUrl = `https://${process.env.CLOUDFRONT_DOMAIN}/${mediaKey}`;
-    const expiresAt = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 hours from now
+    const expiresAt = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 hours
 
-    // Delete existing story if any
+    // ✅ Remove old stories of user
     const existingStories = await dynamodb.query(
       process.env.STORIES_TABLE,
       'authorId = :authorId',
       { ':authorId': currentUser.userId },
       'author-index'
     );
-
     for (const story of existingStories) {
       await dynamodb.delete(process.env.STORIES_TABLE, { storyId: story.storyId });
     }
@@ -65,12 +70,11 @@ const uploadStory = async (currentUser, { mediaType, mediaKey }) => {
       media: mediaUrl,
       viewers: [],
       createdAt: Date.now(),
-      expiresAt
+      expiresAt,
     };
 
     await dynamodb.put(process.env.STORIES_TABLE, story);
 
-    // Update user's story reference
     await dynamodb.update(
       process.env.USERS_TABLE,
       { userId: currentUser.userId },
@@ -78,20 +82,19 @@ const uploadStory = async (currentUser, { mediaType, mediaKey }) => {
       { ':story': storyId }
     );
 
-    // Get author details for response
     const author = await dynamodb.get(process.env.USERS_TABLE, { userId: currentUser.userId });
-    
-    return createSuccessResponse({
+
+    return sendResponse(200, {
       ...story,
       _id: story.storyId,
       author: {
         _id: author.userId,
         userName: author.userName,
-        profileImage: author.profileImage
-      }
+        profileImage: author.profileImage,
+      },
     });
   } catch (error) {
-    return createErrorResponse(500, error.message);
+    return sendResponse(500, { error: error.message });
   }
 };
 
@@ -100,15 +103,12 @@ const getAllStories = async (currentUser) => {
     const user = await dynamodb.get(process.env.USERS_TABLE, { userId: currentUser.userId });
     const allStories = await dynamodb.scan(process.env.STORIES_TABLE);
 
-    // Filter stories from following users only
-    const followingStories = allStories.filter(story => 
-      user.following.includes(story.authorId) && story.authorId !== currentUser.userId
+    const followingStories = allStories.filter(
+      (story) => user.following.includes(story.authorId) && story.authorId !== currentUser.userId
     );
 
-    // Sort by creation date (newest first)
     const sortedStories = followingStories.sort((a, b) => b.createdAt - a.createdAt);
 
-    // Populate author details
     const storiesWithAuthors = await Promise.all(
       sortedStories.map(async (story) => {
         const author = await dynamodb.get(process.env.USERS_TABLE, { userId: story.authorId });
@@ -118,15 +118,15 @@ const getAllStories = async (currentUser) => {
           author: {
             _id: author.userId,
             userName: author.userName,
-            profileImage: author.profileImage
-          }
+            profileImage: author.profileImage,
+          },
         };
       })
     );
 
-    return createSuccessResponse(storiesWithAuthors);
+    return sendResponse(200, storiesWithAuthors);
   } catch (error) {
-    return createErrorResponse(500, error.message);
+    return sendResponse(500, { error: error.message });
   }
 };
 
@@ -140,7 +140,7 @@ const getStoryByUserName = async (userName) => {
     );
 
     if (users.length === 0) {
-      return createErrorResponse(404, 'User not found');
+      return sendResponse(404, { error: 'User not found' });
     }
 
     const user = users[0];
@@ -151,33 +151,32 @@ const getStoryByUserName = async (userName) => {
       'author-index'
     );
 
-    const storiesWithAuthors = stories.map(story => ({
+    const storiesWithAuthors = stories.map((story) => ({
       ...story,
       _id: story.storyId,
       author: {
         _id: user.userId,
         userName: user.userName,
-        profileImage: user.profileImage
-      }
+        profileImage: user.profileImage,
+      },
     }));
 
-    return createSuccessResponse(storiesWithAuthors);
+    return sendResponse(200, storiesWithAuthors);
   } catch (error) {
-    return createErrorResponse(500, error.message);
+    return sendResponse(500, { error: error.message });
   }
 };
 
 const viewStory = async (currentUser, storyId) => {
   try {
     const story = await dynamodb.get(process.env.STORIES_TABLE, { storyId });
-    if (!story) {
-      return createErrorResponse(404, 'Story not found');
-    }
+    if (!story) return sendResponse(404, { error: 'Story not found' });
 
-    // Add viewer if not already viewed
-    if (!story.viewers.includes(currentUser.userId)) {
-      const updatedViewers = [...story.viewers, currentUser.userId];
-      
+    // ✅ Safe check if viewers array exists
+    const viewers = Array.isArray(story.viewers) ? story.viewers : [];
+
+    if (!viewers.includes(currentUser.userId)) {
+      const updatedViewers = [...viewers, currentUser.userId];
       await dynamodb.update(
         process.env.STORIES_TABLE,
         { storyId },
@@ -186,8 +185,8 @@ const viewStory = async (currentUser, storyId) => {
       );
     }
 
-    return createSuccessResponse({ message: 'Story viewed' });
+    return sendResponse(200, { message: 'Story viewed' });
   } catch (error) {
-    return createErrorResponse(500, error.message);
+    return sendResponse(500, { error: error.message });
   }
 };

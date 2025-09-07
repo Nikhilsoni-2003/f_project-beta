@@ -1,9 +1,25 @@
 {
-  "name": "media-function",
+  "name": "serverless-social-media-backend",
   "version": "1.0.0",
+  "description": "AWS Serverless Social Media Backend",
+  "scripts": {
+    "build": "sam build",
+    "deploy": "sam deploy --guided",
+    "local": "sam local start-api",
+    "logs": "sam logs -n AuthFunction --stack-name serverless-social-media --tail"
+  },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.0.0",
-    "@aws-sdk/s3-request-presigner": "^3.0.0",
-    "aws-jwt-verify": "^4.0.0"
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.490.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.490.0",
+    "@aws-sdk/client-dynamodb": "^3.490.0",
+    "@aws-sdk/client-s3": "^3.490.0",
+    "@aws-sdk/lib-dynamodb": "^3.490.0",
+    "@aws-sdk/s3-request-presigner": "^3.490.0",
+    "aws-jwt-verify": "^4.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/types": "^3.490.0"
   }
 }
