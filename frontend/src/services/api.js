@@ -1,6 +1,14 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_GATEWAY_URL;
+
+// Validate API URL
+if (!API_BASE_URL) {
+  console.error('VITE_API_GATEWAY_URL is not defined in environment variables');
+  throw new Error('API Gateway URL is not configured');
+}
+
+console.log('API Base URL:', API_BASE_URL);
 
 // Create axios instance
 const api = axios.create({
