@@ -153,27 +153,32 @@ const dynamodb = require('../../utils/dynamodb');
 const cognito = require('../../utils/cognito');
 const { createSuccessResponse, createErrorResponse } = require('../../utils/response');
 
-// ✅ Centralized CORS response helper
-const sendResponse = (statusCode, body) => {
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://dsvtq5o5a0ykh.cloudfront.net'
+];
+
+const getCorsHeaders = (origin) => {
   return {
-    statusCode,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Credentials': 'true'
-    },
-    body: JSON.stringify(body)
+    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true'
   };
 };
 
 exports.handler = async (event) => {
   const { httpMethod, path, body } = event;
   const parsedBody = body ? JSON.parse(body) : {};
+  const origin = event.headers?.origin || event.headers?.Origin || 'http://localhost:5173';
 
   // Handle OPTIONS (preflight)
   if (httpMethod === 'OPTIONS') {
-    return sendResponse(200, { message: 'CORS preflight OK' });
+    return {
+      statusCode: 200,
+      headers: getCorsHeaders(origin),
+      body: JSON.stringify({ message: 'CORS preflight OK' })
+    };
   }
 
   try {
@@ -198,11 +203,18 @@ exports.handler = async (event) => {
         response = createErrorResponse(404, 'Route not found');
     }
 
-    // Wrap response with CORS
-    return sendResponse(response.statusCode || 200, JSON.parse(response.body));
+    // Attach CORS headers
+    response.headers = {
+      ...(response.headers || {}),
+      ...getCorsHeaders(origin)
+    };
+
+    return response;
   } catch (error) {
     console.error('Auth Handler Error:', error);
-    return sendResponse(500, { error: error.message });
+    const errorResponse = createErrorResponse(500, error.message);
+    errorResponse.headers = getCorsHeaders(origin);
+    return errorResponse;
   }
 };
 

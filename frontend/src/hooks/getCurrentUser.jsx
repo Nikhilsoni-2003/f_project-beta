@@ -22,10 +22,11 @@ const fetchUser=async ()=>{
          dispatch(setUserData(result.data))
          dispatch(setCurrentUserStory(result.data.story))
     } catch (error) {
-        console.log(error)
+        console.error('getCurrentUser error:', error)
         // If unauthorized, clear tokens
         if (error.response?.status === 401) {
           authService.clearTokens();
+          window.location.href = '/signin';
         }
     }
 }

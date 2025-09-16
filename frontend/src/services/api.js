@@ -13,8 +13,10 @@ console.log('API Base URL:', API_BASE_URL);
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
+    'Origin': 'http://localhost:5173'
   },
 });
 
@@ -24,6 +26,7 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  config.headers.Origin = 'http://localhost:5173';
   return config;
 });
 

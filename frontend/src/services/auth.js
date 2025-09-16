@@ -16,14 +16,16 @@ class AuthService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Origin': 'http://localhost:5173'
         },
+        credentials: 'include',
         body: JSON.stringify({ email, password, userName, name })
       });
 
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message);
+        throw new Error(data.message || 'Sign up failed');
       }
 
       // Store tokens if returned
@@ -33,6 +35,7 @@ class AuthService {
 
       return data;
     } catch (error) {
+      console.error('SignUp error:', error);
       throw error;
     }
   }
@@ -43,14 +46,16 @@ class AuthService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Origin': 'http://localhost:5173'
         },
+        credentials: 'include',
         body: JSON.stringify({ userName, password })
       });
 
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message);
+        throw new Error(data.message || 'Sign in failed');
       }
 
       // Store tokens if returned
@@ -60,6 +65,7 @@ class AuthService {
 
       return data;
     } catch (error) {
+      console.error('SignIn error:', error);
       throw error;
     }
   }

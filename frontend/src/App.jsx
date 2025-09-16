@@ -43,18 +43,13 @@ function App() {
   // Check for stored auth token on app load
   useEffect(() => {
     const token = authService.getToken();
-    if (token && !reduxUserData) {
-      // Token exists but no user data, fetch current user
-      const fetchCurrentUser = async () => {
-        try {
-          // This will be handled by the custom hooks
-        } catch (error) {
-          console.error('Failed to fetch current user:', error);
-          authService.clearTokens();
-        }
-      };
+    if (!token) {
+      // No token, clear any existing user data
+      if (reduxUserData) {
+        dispatch(setUserData(null));
+      }
     }
-  }, []);
+  }, [reduxUserData, dispatch]);
 
   // Use custom hooks with fallback to prevent undefined errors
   useGetCurrentUser();
