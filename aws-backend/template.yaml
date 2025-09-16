@@ -22,12 +22,19 @@ Parameters:
   Environment:
     Type: String
     Default: prod
-    AllowedValues: [local, dev, prod]
+    AllowedValues:
+      - local
+      - dev
+      - prod
     Description: Environment type
 
 Conditions:
-  IsLocal: !Equals [!Ref Environment, local]
-  IsDev: !Equals [!Ref Environment, dev]
+  IsLocal: !Equals
+    - !Ref Environment
+    - local
+  IsDev: !Equals
+    - !Ref Environment
+    - dev
 
 Globals:
   Function:
@@ -63,17 +70,23 @@ Resources:
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
-      StageName: !If [IsLocal, local, !If [IsDev, dev, prod]]
+      StageName: !If
+        - IsLocal
+        - local
+        - !If
+          - IsDev
+          - dev
+          - prod
       Cors:
-        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: "'*'"
+        AllowMethods: '''GET,POST,PUT,DELETE,OPTIONS'''
+        AllowHeaders: '''Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'''
+        AllowOrigin: '''*'''
         AllowCredentials: false
       Auth:
         DefaultAuthorizer: CognitoUserPoolAuthorizer
         Authorizers:
           CognitoUserPoolAuthorizer:
-            UserPoolArn: !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}'
+            UserPoolArn: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
 
   # Auth Function (No authorizer needed)
   AuthFunction:
@@ -144,8 +157,8 @@ Resources:
                 - dynamodb:Query
                 - dynamodb:Scan
               Resource:
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
             - Effect: Allow
               Action:
                 - cognito-idp:AdminCreateUser
@@ -155,7 +168,7 @@ Resources:
                 - cognito-idp:AdminGetUser
                 - cognito-idp:ForgotPassword
                 - cognito-idp:ConfirmForgotPassword
-              Resource: !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}'
+              Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
 
   # User Function
   UserFunction:
@@ -242,18 +255,18 @@ Resources:
                 - dynamodb:Query
                 - dynamodb:Scan
               Resource:
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*
             - Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:PutObject
                 - s3:DeleteObject
-              Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+              Resource: !Sub arn:aws:s3:::${S3BucketName}/*
 
   # Post Function
   PostFunction:
@@ -324,18 +337,18 @@ Resources:
                 - dynamodb:Query
                 - dynamodb:Scan
               Resource:
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*
             - Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:PutObject
                 - s3:DeleteObject
-              Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+              Resource: !Sub arn:aws:s3:::${S3BucketName}/*
 
   # Loop Function
   LoopFunction:
@@ -398,18 +411,18 @@ Resources:
                 - dynamodb:Query
                 - dynamodb:Scan
               Resource:
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*
             - Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:PutObject
                 - s3:DeleteObject
-              Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+              Resource: !Sub arn:aws:s3:::${S3BucketName}/*
 
   # Story Function
   StoryFunction:
@@ -473,16 +486,16 @@ Resources:
                 - dynamodb:Query
                 - dynamodb:Scan
               Resource:
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
             - Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:PutObject
                 - s3:DeleteObject
-              Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+              Resource: !Sub arn:aws:s3:::${S3BucketName}/*
 
   # Message Function
   MessageFunction:
@@ -537,12 +550,12 @@ Resources:
                 - dynamodb:Query
                 - dynamodb:Scan
               Resource:
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Messages'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Messages/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Conversations'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Conversations/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Messages
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Messages/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Conversations
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Conversations/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
 
   # Notification Function
   NotificationFunction:
@@ -580,14 +593,14 @@ Resources:
                 - dynamodb:Query
                 - dynamodb:Scan
               Resource:
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops'
-                - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*'
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*
 
   # Media Function
   MediaFunction:
@@ -623,7 +636,7 @@ Resources:
                 - s3:GetObject
                 - s3:PutObject
                 - s3:DeleteObject
-              Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+              Resource: !Sub arn:aws:s3:::${S3BucketName}/*
 
   # WebSocket API
   WebSocketApi:
@@ -654,10 +667,10 @@ Resources:
                 - dynamodb:UpdateItem
                 - dynamodb:Query
                 - dynamodb:Scan
-              Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections'
+              Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
             - Effect: Allow
               Action: execute-api:ManageConnections
-              Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*'
+              Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
 
   WebSocketDisconnectFunction:
     Type: AWS::Serverless::Function
@@ -680,10 +693,10 @@ Resources:
                 - dynamodb:DeleteItem
                 - dynamodb:Query
                 - dynamodb:Scan
-              Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections'
+              Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
             - Effect: Allow
               Action: execute-api:ManageConnections
-              Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*'
+              Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
 
   WebSocketMessageFunction:
     Type: AWS::Serverless::Function
@@ -706,10 +719,10 @@ Resources:
                 - dynamodb:DeleteItem
                 - dynamodb:Query
                 - dynamodb:Scan
-              Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections'
+              Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
             - Effect: Allow
               Action: execute-api:ManageConnections
-              Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*'
+              Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
 
   # WebSocket Routes
   ConnectRoute:
@@ -718,7 +731,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       RouteKey: $connect
       AuthorizationType: NONE
-      Target: !Sub 'integrations/${ConnectIntegration}'
+      Target: !Sub integrations/${ConnectIntegration}
 
   DisconnectRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -726,7 +739,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       RouteKey: $disconnect
       AuthorizationType: NONE
-      Target: !Sub 'integrations/${DisconnectIntegration}'
+      Target: !Sub integrations/${DisconnectIntegration}
 
   MessageRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -734,7 +747,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       RouteKey: message
       AuthorizationType: NONE
-      Target: !Sub 'integrations/${MessageIntegration}'
+      Target: !Sub integrations/${MessageIntegration}
 
   # WebSocket Integrations
   ConnectIntegration:
@@ -742,21 +755,21 @@ Resources:
     Properties:
       ApiId: !Ref WebSocketApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketConnectFunction.Arn}/invocations'
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketConnectFunction.Arn}/invocations
 
   DisconnectIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref WebSocketApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketDisconnectFunction.Arn}/invocations'
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketDisconnectFunction.Arn}/invocations
 
   MessageIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref WebSocketApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketMessageFunction.Arn}/invocations'
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketMessageFunction.Arn}/invocations
 
   # WebSocket Deployment
   WebSocketDeployment:
@@ -782,7 +795,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref WebSocketConnectFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*
 
   WebSocketDisconnectPermission:
     Type: AWS::Lambda::Permission
@@ -790,7 +803,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref WebSocketDisconnectFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*
 
   WebSocketMessagePermission:
     Type: AWS::Lambda::Permission
@@ -798,26 +811,32 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref WebSocketMessageFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*
 
 Outputs:
   ApiGatewayUrl:
     Description: API Gateway endpoint URL
-    Value: !Sub 
-      - 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Stage}'
+    Value: !Sub
+      - https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
       - ApiGateway: !Ref ApiGateway
-        Stage: !If [IsLocal, local, !If [IsDev, dev, prod]]
+        Stage: !If
+          - IsLocal
+          - local
+          - !If
+            - IsDev
+            - dev
+            - prod
     Export:
-      Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
+      Name: !Sub ${AWS::StackName}-ApiGatewayUrl
 
   WebSocketUrl:
     Description: WebSocket API endpoint URL
-    Value: !Sub 'wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Value: !Sub wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod
     Export:
-      Name: !Sub '${AWS::StackName}-WebSocketUrl'
+      Name: !Sub ${AWS::StackName}-WebSocketUrl
 
   WebSocketApiId:
     Description: WebSocket API ID
     Value: !Ref WebSocketApi
     Export:
-      Name: !Sub '${AWS::StackName}-WebSocketApiId'
+      Name: !Sub ${AWS::StackName}-WebSocketApiId

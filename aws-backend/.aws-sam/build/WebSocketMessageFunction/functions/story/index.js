@@ -20,7 +20,7 @@ const getCorsHeaders = (origin) => {
 exports.handler = async (event) => {
   const { httpMethod, path, pathParameters, body } = event;
   const parsedBody = body ? JSON.parse(body) : {};
-  const origin = event.headers?.origin || event.headers?.Origin || 'http://localhost:5173';
+  const origin = event.headers?.origin || event.headers?.Origin || '*';
 
   if (httpMethod === 'OPTIONS') {
     return {

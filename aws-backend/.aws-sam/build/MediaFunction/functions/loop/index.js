@@ -26,7 +26,7 @@ const withCors = (response, origin) => ({
 exports.handler = async (event) => {
   const { httpMethod, path, pathParameters, body, headers } = event;
   const parsedBody = body ? JSON.parse(body) : {};
-  const origin = headers?.origin || headers?.Origin || '*';
+  const origin = event.headers?.origin || event.headers?.Origin || '*';
 
   // Preflight response
   if (httpMethod === 'OPTIONS') {

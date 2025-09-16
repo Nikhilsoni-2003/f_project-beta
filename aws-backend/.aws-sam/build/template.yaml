@@ -8,7 +8,7 @@ Parameters:
     Description: Cognito User Pool ID
   CognitoClientId:
     Type: String
-    Default: 1cvth0disa6uhcgflcsih54hfl
+    Default: 7p0e3uioc8mtq69m4qq12540mn
     Description: Cognito App Client ID
   S3BucketName:
     Type: String
@@ -141,6 +141,15 @@ Resources:
             Method: post
             Auth:
               Authorizer: NONE
+        AuthOptions:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGateway
+            Path: /api/auth/{proxy+}
+            Method: options
+            Auth:
+              Authorizer: NONE
       Policies:
       - Version: '2012-10-17'
         Statement:
@@ -167,15 +176,6 @@ Resources:
             Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
     Metadata:
       SamResourceId: AuthFunction
-  AuthFunctionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: AuthFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/api/auth/*
   UserFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -247,6 +247,15 @@ Resources:
             Method: get
             Auth:
               Authorizer: CognitoUserPoolAuthorizer
+        UserOptions:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGateway
+            Path: /api/user/{proxy+}
+            Method: options
+            Auth:
+              Authorizer: NONE
       Policies:
       - Version: '2012-10-17'
         Statement:
@@ -273,15 +282,6 @@ Resources:
             Fn::Sub: arn:aws:s3:::${S3BucketName}/*
     Metadata:
       SamResourceId: UserFunction
-  UserFunctionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: UserFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/user/*
   PostFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -335,6 +335,15 @@ Resources:
             Method: get
             Auth:
               Authorizer: CognitoUserPoolAuthorizer
+        PostOptions:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGateway
+            Path: /api/post/{proxy+}
+            Method: options
+            Auth:
+              Authorizer: NONE
       Policies:
       - Version: '2012-10-17'
         Statement:
@@ -361,15 +370,6 @@ Resources:
             Fn::Sub: arn:aws:s3:::${S3BucketName}/*
     Metadata:
       SamResourceId: PostFunction
-  PostFunctionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: PostFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/post/*
   LoopFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -414,6 +414,15 @@ Resources:
             Method: post
             Auth:
               Authorizer: CognitoUserPoolAuthorizer
+        LoopOptions:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGateway
+            Path: /api/loop/{proxy+}
+            Method: options
+            Auth:
+              Authorizer: NONE
       Policies:
       - Version: '2012-10-17'
         Statement:
@@ -440,15 +449,6 @@ Resources:
             Fn::Sub: arn:aws:s3:::${S3BucketName}/*
     Metadata:
       SamResourceId: LoopFunction
-  LoopFunctionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: LoopFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/loop/*
   StoryFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -493,6 +493,15 @@ Resources:
             Method: get
             Auth:
               Authorizer: CognitoUserPoolAuthorizer
+        StoryOptions:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGateway
+            Path: /api/story/{proxy+}
+            Method: options
+            Auth:
+              Authorizer: NONE
       Policies:
       - Version: '2012-10-17'
         Statement:
@@ -518,15 +527,6 @@ Resources:
             Fn::Sub: arn:aws:s3:::${S3BucketName}/*
     Metadata:
       SamResourceId: StoryFunction
-  StoryFunctionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: StoryFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/story/*
   MessageFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -562,6 +562,15 @@ Resources:
             Method: get
             Auth:
               Authorizer: CognitoUserPoolAuthorizer
+        MessageOptions:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGateway
+            Path: /api/message/{proxy+}
+            Method: options
+            Auth:
+              Authorizer: NONE
       Policies:
       - Version: '2012-10-17'
         Statement:
@@ -581,15 +590,6 @@ Resources:
           - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
     Metadata:
       SamResourceId: MessageFunction
-  MessageFunctionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: MessageFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/message/*
   NotificationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -637,15 +637,6 @@ Resources:
           - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*
     Metadata:
       SamResourceId: NotificationFunction
-  NotificationFunctionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: NotificationFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/api/user/*
   MediaFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -663,6 +654,15 @@ Resources:
             Method: post
             Auth:
               Authorizer: CognitoUserPoolAuthorizer
+        MediaOptions:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGateway
+            Path: /api/media/{proxy+}
+            Method: options
+            Auth:
+              Authorizer: NONE
       Policies:
       - Version: '2012-10-17'
         Statement:
@@ -675,15 +675,6 @@ Resources:
             Fn::Sub: arn:aws:s3:::${S3BucketName}/*
     Metadata:
       SamResourceId: MediaFunction
-  MediaFunctionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: MediaFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/api/media/*
   WebSocketApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:

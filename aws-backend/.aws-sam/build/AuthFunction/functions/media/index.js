@@ -18,7 +18,7 @@ const getCorsHeaders = (origin) => {
 exports.handler = async (event) => {
   const { httpMethod, path, body, headers } = event;
   const parsedBody = body ? JSON.parse(body) : {};
-  const origin = headers?.origin || headers?.Origin || '*';
+  const origin = event.headers?.origin || event.headers?.Origin || '*';
 
   // Handle OPTIONS preflight
   if (httpMethod === 'OPTIONS') {
