@@ -15,10 +15,8 @@ class AuthService {
       const response = await fetch(`${import.meta.env.VITE_API_GATEWAY_URL}/api/auth/signup`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Origin': 'http://localhost:5173'
+          'Content-Type': 'application/json'
         },
-        credentials: 'include',
         body: JSON.stringify({ email, password, userName, name })
       });
 
@@ -45,10 +43,8 @@ class AuthService {
       const response = await fetch(`${import.meta.env.VITE_API_GATEWAY_URL}/api/auth/signin`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Origin': 'http://localhost:5173'
+          'Content-Type': 'application/json'
         },
-        credentials: 'include',
         body: JSON.stringify({ userName, password })
       });
 

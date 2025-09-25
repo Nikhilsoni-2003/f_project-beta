@@ -5,14 +5,15 @@ const { createSuccessResponse, createErrorResponse } = require('../../utils/resp
 
 const allowedOrigins = [
   'http://localhost:5173',
+  'https://localhost:5173',
   'https://dsvtq5o5a0ykh.cloudfront.net'
 ];
 
 const getCorsHeaders = (origin) => ({
-  'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Credentials': 'true'
+  'Access-Control-Max-Age': '86400'
 });
 
 const withCors = (response, origin) => ({
