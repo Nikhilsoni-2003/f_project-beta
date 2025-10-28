@@ -6,22 +6,23 @@ const { createSuccessResponse, createErrorResponse } = require('../../utils/resp
 
 const allowedOrigins = [
   'http://localhost:5173',
+  'https://localhost:5173',
   'https://dsvtq5o5a0ykh.cloudfront.net'
 ];
 
 const getCorsHeaders = (origin) => {
   return {
-    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true'
+    'Access-Control-Max-Age': '86400'
   };
 };
 
 exports.handler = async (event) => {
   const { httpMethod, path, pathParameters, queryStringParameters, body } = event;
   const parsedBody = body ? JSON.parse(body) : {};
-  const origin = event.headers?.origin || event.headers?.Origin || 'http://localhost:5173';
+  const origin = event.headers?.origin || event.headers?.Origin || '*';
 
   if (httpMethod === 'OPTIONS') {
     return {
