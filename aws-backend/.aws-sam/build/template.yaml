@@ -8,7 +8,7 @@ Parameters:
     Description: Cognito User Pool ID
   CognitoClientId:
     Type: String
-    Default: 7p0e3uioc8mtq69m4qq12540mn
+    Default: 1cvth0disa6uhcgflcsih54hfl
     Description: Cognito App Client ID
   S3BucketName:
     Type: String
@@ -87,6 +87,28 @@ Resources:
           CognitoUserPoolAuthorizer:
             UserPoolArn:
               Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+  ApiGatewayCORS4XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    DependsOn: ApiGateway
+    Properties:
+      RestApiId:
+        Ref: ApiGateway
+      ResponseType: DEFAULT_4XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: '''*'''
+        gatewayresponse.header.Access-Control-Allow-Headers: '''Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'''
+        gatewayresponse.header.Access-Control-Allow-Methods: '''GET,POST,PUT,DELETE,OPTIONS'''
+  ApiGatewayCORS5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    DependsOn: ApiGateway
+    Properties:
+      RestApiId:
+        Ref: ApiGateway
+      ResponseType: DEFAULT_5XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: '''*'''
+        gatewayresponse.header.Access-Control-Allow-Headers: '''Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'''
+        gatewayresponse.header.Access-Control-Allow-Methods: '''GET,POST,PUT,DELETE,OPTIONS'''
   AuthFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -270,6 +292,10 @@ Resources:
           - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users/index/*
           - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts
           - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Posts/index/*
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Stories/index/*
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Loops/index/*
           - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications
           - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Notifications/index/*
         - Effect: Allow
@@ -677,9 +703,81 @@ Resources:
   WebSocketApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
-      Name: SocialMediaWebSocket
+      Name:
+        Fn::Sub: ${AWS::StackName}-WebSocket
       ProtocolType: WEBSOCKET
       RouteSelectionExpression: $request.body.action
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId:
+        Ref: WebSocketApi
+      StageName:
+        Fn::If:
+        - IsLocal
+        - local
+        - Fn::If:
+          - IsDev
+          - dev
+          - prod
+      AutoDeploy: true
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Ref: WebSocketApi
+      RouteKey: $connect
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: ConnectIntegration
+  ConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketConnectFunction.Arn}/invocations
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Ref: WebSocketApi
+      RouteKey: $disconnect
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: DisconnectIntegration
+  DisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketDisconnectFunction.Arn}/invocations
+  MessageRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Ref: WebSocketApi
+      RouteKey: message
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: MessageIntegration
+  MessageIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketMessageFunction.Arn}/invocations
   WebSocketConnectFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -687,22 +785,17 @@ Resources:
       Handler: functions/websocket/connect.handler
       Layers:
       - Ref: SharedLayer
-      Environment:
-        Variables:
-          WEBSOCKET_API_ID:
-            Ref: WebSocketApi
       Policies:
       - Version: '2012-10-17'
         Statement:
         - Effect: Allow
           Action:
-          - dynamodb:GetItem
           - dynamodb:PutItem
+          - dynamodb:GetItem
           - dynamodb:UpdateItem
-          - dynamodb:Query
-          - dynamodb:Scan
           Resource:
-            Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections/index/*
         - Effect: Allow
           Action: execute-api:ManageConnections
           Resource:
@@ -716,23 +809,16 @@ Resources:
       Handler: functions/websocket/disconnect.handler
       Layers:
       - Ref: SharedLayer
-      Environment:
-        Variables:
-          WEBSOCKET_API_ID:
-            Ref: WebSocketApi
       Policies:
       - Version: '2012-10-17'
         Statement:
         - Effect: Allow
           Action:
-          - dynamodb:GetItem
-          - dynamodb:PutItem
-          - dynamodb:UpdateItem
           - dynamodb:DeleteItem
-          - dynamodb:Query
-          - dynamodb:Scan
+          - dynamodb:GetItem
           Resource:
-            Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections/index/*
         - Effect: Allow
           Action: execute-api:ManageConnections
           Resource:
@@ -746,98 +832,23 @@ Resources:
       Handler: functions/websocket/message.handler
       Layers:
       - Ref: SharedLayer
-      Environment:
-        Variables:
-          WEBSOCKET_API_ID:
-            Ref: WebSocketApi
       Policies:
       - Version: '2012-10-17'
         Statement:
         - Effect: Allow
           Action:
-          - dynamodb:GetItem
-          - dynamodb:PutItem
-          - dynamodb:UpdateItem
-          - dynamodb:DeleteItem
           - dynamodb:Query
-          - dynamodb:Scan
+          - dynamodb:GetItem
           Resource:
-            Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Connections/index/*
         - Effect: Allow
           Action: execute-api:ManageConnections
           Resource:
             Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
     Metadata:
       SamResourceId: WebSocketMessageFunction
-  ConnectRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId:
-        Ref: WebSocketApi
-      RouteKey: $connect
-      AuthorizationType: NONE
-      Target:
-        Fn::Sub: integrations/${ConnectIntegration}
-  DisconnectRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId:
-        Ref: WebSocketApi
-      RouteKey: $disconnect
-      AuthorizationType: NONE
-      Target:
-        Fn::Sub: integrations/${DisconnectIntegration}
-  MessageRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId:
-        Ref: WebSocketApi
-      RouteKey: message
-      AuthorizationType: NONE
-      Target:
-        Fn::Sub: integrations/${MessageIntegration}
-  ConnectIntegration:
-    Type: AWS::ApiGatewayV2::Integration
-    Properties:
-      ApiId:
-        Ref: WebSocketApi
-      IntegrationType: AWS_PROXY
-      IntegrationUri:
-        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketConnectFunction.Arn}/invocations
-  DisconnectIntegration:
-    Type: AWS::ApiGatewayV2::Integration
-    Properties:
-      ApiId:
-        Ref: WebSocketApi
-      IntegrationType: AWS_PROXY
-      IntegrationUri:
-        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketDisconnectFunction.Arn}/invocations
-  MessageIntegration:
-    Type: AWS::ApiGatewayV2::Integration
-    Properties:
-      ApiId:
-        Ref: WebSocketApi
-      IntegrationType: AWS_PROXY
-      IntegrationUri:
-        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketMessageFunction.Arn}/invocations
-  WebSocketDeployment:
-    Type: AWS::ApiGatewayV2::Deployment
-    DependsOn:
-    - ConnectRoute
-    - DisconnectRoute
-    - MessageRoute
-    Properties:
-      ApiId:
-        Ref: WebSocketApi
-  WebSocketStage:
-    Type: AWS::ApiGatewayV2::Stage
-    Properties:
-      ApiId:
-        Ref: WebSocketApi
-      DeploymentId:
-        Ref: WebSocketDeployment
-      StageName: prod
-  WebSocketConnectPermission:
+  ConnectPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
@@ -845,8 +856,8 @@ Resources:
         Ref: WebSocketConnectFunction
       Principal: apigateway.amazonaws.com
       SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*
-  WebSocketDisconnectPermission:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/$connect
+  DisconnectPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
@@ -854,8 +865,8 @@ Resources:
         Ref: WebSocketDisconnectFunction
       Principal: apigateway.amazonaws.com
       SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*
-  WebSocketMessagePermission:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/$disconnect
+  MessagePermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
@@ -863,30 +874,20 @@ Resources:
         Ref: WebSocketMessageFunction
       Principal: apigateway.amazonaws.com
       SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/message
 Outputs:
   ApiGatewayUrl:
-    Description: API Gateway endpoint URL
+    Description: REST API Gateway endpoint URL
     Value:
-      Fn::Sub:
-      - https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
-      - ApiGateway:
-          Ref: ApiGateway
-        Stage:
-          Fn::If:
-          - IsLocal
-          - local
-          - Fn::If:
-            - IsDev
-            - dev
-            - prod
+      Fn::Sub: https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${!If
+        [IsLocal, local, !If [IsDev, dev, prod]]}
     Export:
       Name:
         Fn::Sub: ${AWS::StackName}-ApiGatewayUrl
   WebSocketUrl:
     Description: WebSocket API endpoint URL
     Value:
-      Fn::Sub: wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+      Fn::Sub: wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${WebSocketStage}
     Export:
       Name:
         Fn::Sub: ${AWS::StackName}-WebSocketUrl
